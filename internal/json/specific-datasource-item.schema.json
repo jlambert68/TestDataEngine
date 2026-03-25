@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/specific-datasource-item.schema.json",
+  "title": "Example of Response Data from a Specific DataSource Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "TestDataId",
+    "AccountId",
+    "DirectClientCustodyAccountId",
+    "AccountCurrency",
+    "AccountEnvironment",
+    "ClientJurisdictionCountryCode",
+    "DebitOrCredit",
+    "c",
+    "MarketCountry",
+    "MarketName",
+    "MarketSubType",
+    "AccountType",
+    "PooledCashAccount",
+    "Nostro",
+    "MarketCurrency",
+    "ISIN",
+    "SecurityType",
+    "ProvisionalIncome"
+  ],
+  "properties": {
+    "TestDataId": {
+      "type": "integer"
+    },
+    "AccountId": {
+      "type": "integer"
+    },
+    "DirectClientCustodyAccountId": {
+      "type": "integer"
+    },
+    "AccountCurrency": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 3
+    },
+    "AccountEnvironment": {
+      "type": "string"
+    },
+    "ClientJurisdictionCountryCode": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 2
+    },
+    "DebitOrCredit": {
+      "type": "string"
+    },
+    "c": {
+      "type": "string"
+    },
+    "MarketCountry": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 2
+    },
+    "MarketName": {
+      "type": "string"
+    },
+    "MarketSubType": {
+      "type": "string"
+    },
+    "AccountType": {
+      "type": "string"
+    },
+    "PooledCashAccount": {
+      "type": "integer"
+    },
+    "Nostro": {
+      "type": "integer"
+    },
+    "MarketCurrency": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 3
+    },
+    "ISIN": {
+      "type": "string",
+      "minLength": 12,
+      "maxLength": 12
+    },
+    "SecurityType": {
+      "type": "string"
+    },
+    "ProvisionalIncome": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+@startuml
+title TestDataEngine main.go runtime sequence
+
+actor "Operator" as OP
+participant "main.go" as MAIN
+participant "encoding/json" as JSON
+participant "os" as OS
+participant "filters.QueryCSVDataSource" as QUERY
+participant "filters.loadCSVDataSource" as LOAD
+participant "filters.compileRequestForDataSource" as COMPILE
+participant "filters.allowedFieldsForDataSource" as ALLOWED
+participant "filters.evaluateExpression (per row)" as EVAL
+participant "internal/logging" as LOG
+
+OP -> MAIN: go run ./cmd/testdataengine
+
+MAIN -> JSON: Unmarshal(filterReqJSON, &req)
+alt unmarshal fails
+  MAIN -> LOG: Fatalf("7e7e323b-a072-4af3-8608-95316cce6fe2", err)
+  LOG --> OP: process exits
+else unmarshal ok
+end
+
+MAIN -> OS: Stat("p26_2/FenixRawTestdata_646rows_211220_stripped.csv")
+alt file missing
+  MAIN -> MAIN: fallback path = "P26_2/FenixRawTestdata_646rows_211220_stripped.csv"
+else file exists
+  MAIN -> MAIN: keep p26_2 path
+end
+
+MAIN -> QUERY: QueryCSVDataSource(req, csvPath, 1)
+QUERY -> LOAD: loadCSVDataSource(req.DataSourceUUID, csvPath)
+LOAD --> QUERY: datasource definition + parsed rows
+
+QUERY -> COMPILE: compileRequestForDataSource(req, ds)
+COMPILE --> QUERY: CompiledFilter{WhereSQL, Args}
+
+QUERY -> ALLOWED: allowedFieldsForDataSource(req, ds)
+ALLOWED --> QUERY: AllowedFieldResponse
+
+loop for each csv row
+  QUERY -> EVAL: evaluateExpression(req.RequestFilter, row, ds.Fields)
+  EVAL --> QUERY: matched true/false
+end
+
+QUERY --> MAIN: compiled, allowedResp, dataResp
+
+alt query fails
+  MAIN -> LOG: Fatalf("c2fd3f4f-1119-47d8-bbe7-28f159f57db2", err)
+  LOG --> OP: process exits
+else query ok
+end
+
+MAIN -> LOG: Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "CSV=%s")
+MAIN -> LOG: Infof("35579f2f-4de2-4cc2-bf0a-bf579f31cf64", "WHERE=%s")
+MAIN -> LOG: Infof("37f52f2f-fb8f-47dd-bf14-17c3a194ddbc", "ARGS=%v")
+
+MAIN -> JSON: MarshalIndent(allowedResp)
+alt marshal allowedResp fails
+  MAIN -> LOG: Fatalf("2e8c5ee6-241d-4f65-b82a-0877eef3644d", err)
+  LOG --> OP: process exits
+else marshal allowedResp ok
+  MAIN -> LOG: Infof("15f177af-c4dc-4e86-a4e5-4f20fdf001d3", "AllowedFieldsResponse=%s")
+end
+
+MAIN -> JSON: MarshalIndent(dataResp)
+alt marshal dataResp fails
+  MAIN -> LOG: Fatalf("9efef5d2-f500-450f-929f-890f4d89f777", err)
+  LOG --> OP: process exits
+else marshal dataResp ok
+  MAIN -> LOG: Infof("70e0f6f2-72fd-42bf-9f0e-f9afca6ebc52", "DataSetResponse=%s")
+end
+
+MAIN --> OP: program completed
+
+@enduml

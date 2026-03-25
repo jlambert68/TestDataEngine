@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/test-dataset-response.schema.json",
+  "title": "TestDataSet response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "DataSourceName",
+    "DataSourceUuid",
+    "Data"
+  ],
+  "properties": {
+    "DataSourceName": {
+      "type": "string"
+    },
+    "DataSourceUuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Data": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 1,
+      "items": {
+        "$ref": "specific-datasource-item.schema.json"
+      }
+    }
+  }
+}
