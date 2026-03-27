@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestQueryCSVDataSource validates end-to-end request filtering against CSV input.
 func TestQueryCSVDataSource(t *testing.T) {
 	t.Parallel()
 

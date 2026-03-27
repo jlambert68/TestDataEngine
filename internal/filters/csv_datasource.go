@@ -1,10 +1,13 @@
 package filters
 
 import (
+	"encoding/binary"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 	"os"
 	"strconv"
@@ -18,7 +21,19 @@ type DataSetResponse struct {
 	Data           []map[string]interface{} `json:"Data"`
 }
 
+// QueryCSVDataSource loads rows from a CSV file, applies RequestFilter, and returns matches.
 func QueryCSVDataSource(req FilterRequest, csvPath string, maxItems int) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
+	return QueryCSVDataSourceWithSeed(req, csvPath, maxItems, "")
+}
+
+// QueryCSVDataSourceWithSeed behaves like QueryCSVDataSource but allows deterministic shuffling
+// when randomSeedGUID is set.
+func QueryCSVDataSourceWithSeed(
+	req FilterRequest,
+	csvPath string,
+	maxItems int,
+	randomSeedGUID string,
+) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
 	if err := validateRequestEnvelope(req); err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
@@ -34,6 +49,18 @@ func QueryCSVDataSource(req FilterRequest, csvPath string, maxItems int) (Compil
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
 
+	return queryDataRows(req, ds, rows, "csv", maxItems, randomSeedGUID)
+}
+
+// queryDataRows runs the shared filtering pipeline used by CSV and SQLite sources.
+func queryDataRows(
+	req FilterRequest,
+	ds DataSourceDefinition,
+	rows []map[string]interface{},
+	sourceLabel string,
+	maxItems int,
+	randomSeedGUID string,
+) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
 	compiled, err := compileRequestForDataSource(req, ds)
 	if err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
@@ -48,7 +75,7 @@ func QueryCSVDataSource(req FilterRequest, csvPath string, maxItems int) (Compil
 	for i, row := range rows {
 		matched, err := evaluateExpression(req.RequestFilter, row, ds.Fields)
 		if err != nil {
-			return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, fmt.Errorf("evaluate csv row %d: %w", i+1, err)
+			return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, fmt.Errorf("evaluate %s row %d: %w", sourceLabel, i+1, err)
 		}
 		if !matched {
 			continue
@@ -56,7 +83,10 @@ func QueryCSVDataSource(req FilterRequest, csvPath string, maxItems int) (Compil
 		filtered = append(filtered, row)
 	}
 
-	shuffleRows(filtered)
+	// Shuffle before limiting so repeated requests do not always return identical first rows.
+	if err := shuffleRowsWithGUID(filtered, randomSeedGUID); err != nil {
+		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
+	}
 	if maxItems > 0 && len(filtered) > maxItems {
 		filtered = filtered[:maxItems]
 	}
@@ -68,16 +98,48 @@ func QueryCSVDataSource(req FilterRequest, csvPath string, maxItems int) (Compil
 	}, nil
 }
 
+// shuffleRows randomizes row order in-place.
 func shuffleRows(rows []map[string]interface{}) {
+	_ = shuffleRowsWithGUID(rows, "")
+}
+
+// shuffleRowsWithGUID randomizes row order in-place and can use a deterministic GUID seed.
+func shuffleRowsWithGUID(rows []map[string]interface{}, randomSeedGUID string) error {
 	if len(rows) < 2 {
-		return
+		return nil
 	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r, err := seededRand(randomSeedGUID)
+	if err != nil {
+		return err
+	}
 	r.Shuffle(len(rows), func(i, j int) {
 		rows[i], rows[j] = rows[j], rows[i]
 	})
+	return nil
 }
 
+// seededRand returns deterministic randomness when randomSeedGUID is set.
+func seededRand(randomSeedGUID string) (*rand.Rand, error) {
+	guid := strings.TrimSpace(randomSeedGUID)
+	if guid == "" {
+		return rand.New(rand.NewSource(time.Now().UnixNano())), nil
+	}
+	if !isUUID(guid) {
+		return nil, fmt.Errorf("invalid random seed guid: %q", randomSeedGUID)
+	}
+
+	normalized := strings.ReplaceAll(strings.ToLower(guid), "-", "")
+	decoded, err := hex.DecodeString(normalized)
+	if err != nil || len(decoded) < 8 {
+		h := fnv.New64a()
+		_, _ = h.Write([]byte(guid))
+		return rand.New(rand.NewSource(int64(h.Sum64()))), nil
+	}
+	seed := int64(binary.BigEndian.Uint64(decoded[:8]))
+	return rand.New(rand.NewSource(seed)), nil
+}
+
+// compileRequestForDataSource compiles the request against a concrete inferred datasource.
 func compileRequestForDataSource(req FilterRequest, ds DataSourceDefinition) (CompiledFilter, error) {
 	if err := validateRequestEnvelope(req); err != nil {
 		return CompiledFilter{}, err
@@ -95,6 +157,7 @@ func compileRequestForDataSource(req FilterRequest, ds DataSourceDefinition) (Co
 	}, nil
 }
 
+// allowedFieldsForDataSource builds the response payload with sorted field metadata.
 func allowedFieldsForDataSource(req FilterRequest, ds DataSourceDefinition) (AllowedFieldResponse, error) {
 	if req.SchemaVersion != "1.0" {
 		return AllowedFieldResponse{}, fmt.Errorf("unsupported SchemaVersion: %q", req.SchemaVersion)
@@ -130,6 +193,7 @@ func allowedFieldsForDataSource(req FilterRequest, ds DataSourceDefinition) (All
 	}, nil
 }
 
+// loadCSVDataSource infers field types/operators and parses all CSV rows into typed values.
 func loadCSVDataSource(dataSourceUUID, csvPath string) (DataSourceDefinition, []map[string]interface{}, error) {
 	f, err := os.Open(csvPath)
 	if err != nil {
@@ -194,6 +258,7 @@ func loadCSVDataSource(dataSourceUUID, csvPath string) (DataSourceDefinition, []
 	}, rows, nil
 }
 
+// evaluateExpression recursively evaluates comparison/and/or/not expressions against one row.
 func evaluateExpression(raw json.RawMessage, row map[string]interface{}, fields map[string]FieldDefinition) (bool, error) {
 	var cmpProbe struct {
 		Field *string `json:"field"`
@@ -259,6 +324,7 @@ func evaluateExpression(raw json.RawMessage, row map[string]interface{}, fields 
 	return false, errors.New("invalid expression: must be comparison, and, or, or not")
 }
 
+// evaluateComparison applies one operator to one row value.
 func evaluateComparison(c Comparison, row map[string]interface{}, fields map[string]FieldDefinition) (bool, error) {
 	if _, _, err := compileComparison(c, fields); err != nil {
 		return false, err
@@ -332,6 +398,7 @@ func evaluateComparison(c Comparison, row map[string]interface{}, fields map[str
 	}
 }
 
+// valuesEqual compares row/filter values using field-type aware conversions.
 func valuesEqual(fieldType string, rowValue, filterValue interface{}) (bool, error) {
 	if rowValue == nil || filterValue == nil {
 		return rowValue == nil && filterValue == nil, nil
@@ -371,6 +438,7 @@ func valuesEqual(fieldType string, rowValue, filterValue interface{}) (bool, err
 	}
 }
 
+// compareOrdered handles gt/gte/lt/lte comparisons for numeric and string-like values.
 func compareOrdered(fieldType string, rowValue, filterValue interface{}, okFn func(left, right int) bool) (bool, error) {
 	if rowValue == nil {
 		return false, nil
@@ -408,6 +476,7 @@ func compareOrdered(fieldType string, rowValue, filterValue interface{}, okFn fu
 	}
 }
 
+// validateRequestEnvelope validates request metadata without requiring catalog lookup.
 func validateRequestEnvelope(req FilterRequest) error {
 	if req.SchemaVersion != "1.0" {
 		return fmt.Errorf("unsupported SchemaVersion: %q", req.SchemaVersion)

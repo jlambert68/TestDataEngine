@@ -1,0 +1,233 @@
+package filters
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
+	_ "modernc.org/sqlite"
+)
+
+// QuerySQLiteDataSource loads datasource rows from SQLite and runs the shared filter pipeline.
+func QuerySQLiteDataSource(
+	req FilterRequest,
+	dbPath string,
+	tableName string,
+	maxItems int,
+) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
+	return QuerySQLiteDataSourceWithSeed(req, dbPath, tableName, maxItems, "")
+}
+
+// QuerySQLiteDataSourceWithSeed behaves like QuerySQLiteDataSource but allows deterministic
+// shuffling when randomSeedGUID is set.
+func QuerySQLiteDataSourceWithSeed(
+	req FilterRequest,
+	dbPath string,
+	tableName string,
+	maxItems int,
+	randomSeedGUID string,
+) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
+	if err := validateRequestEnvelope(req); err != nil {
+		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
+	}
+	if strings.TrimSpace(dbPath) == "" {
+		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, errors.New("db path is required")
+	}
+	if strings.TrimSpace(tableName) == "" {
+		tableName = "main.data_items"
+	}
+	if !isSafeTableIdentifier(tableName) {
+		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, fmt.Errorf("unsafe table name: %q", tableName)
+	}
+	if maxItems < 0 {
+		maxItems = 0
+	}
+
+	ds, rows, err := loadSQLiteDataSource(req, dbPath, tableName)
+	if err != nil {
+		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
+	}
+	return queryDataRows(req, ds, rows, "sqlite", maxItems, randomSeedGUID)
+}
+
+// loadSQLiteDataSource fetches JsonData rows, infers fields, and converts values to typed rows.
+func loadSQLiteDataSource(
+	req FilterRequest,
+	dbPath string,
+	tableName string,
+) (DataSourceDefinition, []map[string]interface{}, error) {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return DataSourceDefinition{}, nil, fmt.Errorf("open sqlite db: %w", err)
+	}
+	defer db.Close()
+
+	query := fmt.Sprintf(
+		`SELECT JsonData FROM %s WHERE DataSourceUuid = ? AND DataSourceName = ?`,
+		tableName,
+	)
+	rows, err := db.QueryContext(context.Background(), query, req.DataSourceUUID, req.DataSourceName)
+	if err != nil {
+		return DataSourceDefinition{}, nil, fmt.Errorf("query sqlite datasource rows: %w", err)
+	}
+	defer rows.Close()
+
+	rawRows := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		var rawJSON string
+		if err := rows.Scan(&rawJSON); err != nil {
+			return DataSourceDefinition{}, nil, fmt.Errorf("scan sqlite row: %w", err)
+		}
+
+		var payload map[string]interface{}
+		if err := json.Unmarshal([]byte(rawJSON), &payload); err != nil {
+			return DataSourceDefinition{}, nil, fmt.Errorf("unmarshal JsonData: %w", err)
+		}
+		rawRows = append(rawRows, payload)
+	}
+	if err := rows.Err(); err != nil {
+		return DataSourceDefinition{}, nil, fmt.Errorf("iterate sqlite rows: %w", err)
+	}
+	if len(rawRows) == 0 {
+		return DataSourceDefinition{}, nil, fmt.Errorf("no data rows found for datasource %q (%s)", req.DataSourceName, req.DataSourceUUID)
+	}
+
+	// Build inferred field definitions from all discovered JSON keys.
+	fieldOrder := collectFieldOrder(rawRows)
+	columnValues := make(map[string][]string, len(fieldOrder))
+	for _, row := range rawRows {
+		for _, field := range fieldOrder {
+			columnValues[field] = append(columnValues[field], rawValueToStringForInference(row[field]))
+		}
+	}
+
+	fields := make(map[string]FieldDefinition, len(fieldOrder))
+	for _, field := range fieldOrder {
+		fieldType := inferFieldType(columnValues[field])
+		fields[field] = FieldDefinition{
+			FieldType:          fieldType,
+			Nullable:           hasNullValue(columnValues[field]),
+			SupportedOperators: supportedOperatorsForType(fieldType),
+			Description:        fmt.Sprintf("Inferred from SQLite JsonData field %q.", field),
+		}
+	}
+
+	typedRows := make([]map[string]interface{}, 0, len(rawRows))
+	for idx, rawRow := range rawRows {
+		row := make(map[string]interface{}, len(fieldOrder))
+		for _, field := range fieldOrder {
+			fieldDef := fields[field]
+			val, err := coerceRawValue(rawRow[field], fieldDef.FieldType)
+			if err != nil {
+				return DataSourceDefinition{}, nil, fmt.Errorf("sqlite row %d field %q: %w", idx+1, field, err)
+			}
+			row[field] = val
+		}
+		typedRows = append(typedRows, row)
+	}
+
+	return DataSourceDefinition{
+		UUID:   req.DataSourceUUID,
+		Fields: fields,
+	}, typedRows, nil
+}
+
+// collectFieldOrder returns a stable sorted list of field names across all rows.
+func collectFieldOrder(rows []map[string]interface{}) []string {
+	order := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, row := range rows {
+		for field := range row {
+			if _, ok := seen[field]; ok {
+				continue
+			}
+			seen[field] = struct{}{}
+			order = append(order, field)
+		}
+	}
+	sortStrings(order)
+	return order
+}
+
+// sortStrings provides deterministic ordering without extra dependencies.
+func sortStrings(items []string) {
+	for i := 0; i < len(items)-1; i++ {
+		for j := i + 1; j < len(items); j++ {
+			if items[j] < items[i] {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
+}
+
+// rawValueToStringForInference converts JSON values to strings used by CSV-type inference helpers.
+func rawValueToStringForInference(v interface{}) string {
+	if v == nil {
+		return "NULL"
+	}
+	switch t := v.(type) {
+	case string:
+		return t
+	case bool:
+		if t {
+			return "true"
+		}
+		return "false"
+	case float64:
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(t), 'f', -1, 64)
+	case int:
+		return strconv.Itoa(t)
+	case int8:
+		return strconv.FormatInt(int64(t), 10)
+	case int16:
+		return strconv.FormatInt(int64(t), 10)
+	case int32:
+		return strconv.FormatInt(int64(t), 10)
+	case int64:
+		return strconv.FormatInt(t, 10)
+	case uint:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint64:
+		return strconv.FormatUint(t, 10)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// coerceRawValue maps raw JSON values into the inferred field type.
+func coerceRawValue(v interface{}, fieldType string) (interface{}, error) {
+	if v == nil {
+		return nil, nil
+	}
+	raw := rawValueToStringForInference(v)
+	return parseCSVValue(raw, fieldType)
+}
+
+// isSafeTableIdentifier limits dynamic table names to safe identifier characters.
+func isSafeTableIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			r == '_' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}

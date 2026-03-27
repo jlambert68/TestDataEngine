@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestToSetAndOperatorSorting verifies deterministic operator and field ordering helpers.
 func TestToSetAndOperatorSorting(t *testing.T) {
 	ops := toSet("eq", "neq", "eq", "contains")
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "toSet", []string{"eq", "neq", "eq", "contains"}, "unique operator set", ops)
@@ -33,6 +34,7 @@ func TestToSetAndOperatorSorting(t *testing.T) {
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "sortAllowedFields", []string{"z", "a", "m"}, []string{"a", "m", "z"}, []string{fields[0].FieldName, fields[1].FieldName, fields[2].FieldName})
 }
 
+// TestValidateRequestAndCompileRequest validates happy-path envelope checks and SQL compilation.
 func TestValidateRequestAndCompileRequest(t *testing.T) {
 	req := FilterRequest{
 		SchemaVersion:  "1.0",
@@ -60,6 +62,7 @@ func TestValidateRequestAndCompileRequest(t *testing.T) {
 	}
 }
 
+// TestValidateRequestErrors ensures malformed request envelopes are rejected.
 func TestValidateRequestErrors(t *testing.T) {
 	base := FilterRequest{
 		SchemaVersion:  "1.0",
@@ -138,6 +141,7 @@ func TestValidateRequestErrors(t *testing.T) {
 	}
 }
 
+// TestGetAllowedFieldsResponse validates allowed-field metadata generation.
 func TestGetAllowedFieldsResponse(t *testing.T) {
 	resp, err := GetAllowedFieldsResponse(
 		"1.0",
@@ -168,6 +172,7 @@ func TestGetAllowedFieldsResponse(t *testing.T) {
 	}
 }
 
+// TestCompileExpressionLogicalAndNot covers logical expression compilation behavior.
 func TestCompileExpressionLogicalAndNot(t *testing.T) {
 	fields := map[string]FieldDefinition{
 		"status": {
@@ -202,6 +207,7 @@ func TestCompileExpressionLogicalAndNot(t *testing.T) {
 	}
 }
 
+// TestCompileComparisonOperators checks SQL generation for all supported operators.
 func TestCompileComparisonOperators(t *testing.T) {
 	fields := map[string]FieldDefinition{
 		"s": {FieldType: "string", SupportedOperators: toSet("eq", "neq", "contains", "startsWith", "endsWith", "in", "nin", "exists", "isNull")},
@@ -254,6 +260,7 @@ func TestCompileComparisonOperators(t *testing.T) {
 	}
 }
 
+// TestValidationAndHelperFunctions covers utility/validation helper behavior.
 func TestValidationAndHelperFunctions(t *testing.T) {
 	if err := validateScalarValue("x", "string"); err != nil {
 		t.Fatalf("unexpected error: %v", err)

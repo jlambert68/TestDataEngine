@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// ExampleCompiler_Compile demonstrates JSON request parsing and SQL compilation output.
 func ExampleCompiler_Compile() {
 	input := []byte(`{
 	  "SchemaVersion": "1.0",

@@ -23,6 +23,7 @@ const (
 	OpExists     Operator = "exists"
 )
 
+// Valid reports whether the operator is supported by the expression model.
 func (op Operator) Valid() bool {
 	switch op {
 	case OpEq, OpNeq, OpGt, OpGte, OpLt, OpLte, OpIn, OpNin, OpContains, OpStartsWith, OpEndsWith, OpExists:
@@ -64,6 +65,7 @@ type NotExpression struct {
 
 func (NotExpression) isExpression() {}
 
+// ParseExpression parses JSON into a recursive expression tree.
 func ParseExpression(data []byte) (Expression, error) {
 	var probe map[string]json.RawMessage
 	if err := json.Unmarshal(data, &probe); err != nil {
@@ -130,6 +132,7 @@ func ParseExpression(data []byte) (Expression, error) {
 	}
 }
 
+// hasOnlyKey checks that an object contains exactly one key.
 func hasOnlyKey(m map[string]json.RawMessage, key string) bool {
 	if len(m) != 1 {
 		return false

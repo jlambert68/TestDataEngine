@@ -18,6 +18,7 @@ type Compiler struct {
 	QuoteIdent  bool
 }
 
+// Compile validates the request and compiles RequestFilter into SQL + ordered arguments.
 func (c Compiler) Compile(req Request) (string, []any, error) {
 	if err := ValidateRequest(req); err != nil {
 		return "", nil, err
@@ -29,6 +30,7 @@ func (c Compiler) Compile(req Request) (string, []any, error) {
 	return sql, args, nil
 }
 
+// compileExpr recursively compiles expression trees and tracks placeholder offsets.
 func (c Compiler) compileExpr(expr Expression, next int) (string, []any, error) {
 	switch e := expr.(type) {
 	case Comparison:
@@ -72,6 +74,7 @@ func (c Compiler) compileExpr(expr Expression, next int) (string, []any, error) 
 	}
 }
 
+// compileComparison compiles one comparison node according to operator semantics.
 func (c Compiler) compileComparison(cmp Comparison, next int) (string, []any, error) {
 	field, err := c.identifier(cmp.Field)
 	if err != nil {
@@ -147,6 +150,7 @@ func (c Compiler) identifier(name string) (string, error) {
 	return `"` + name + `"`, nil
 }
 
+// ph returns the placeholder token for the current placeholder style.
 func (c Compiler) ph(n int) string {
 	switch c.Placeholder {
 	case Dollar:

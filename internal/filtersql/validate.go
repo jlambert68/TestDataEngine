@@ -8,6 +8,7 @@ import (
 
 var uuidRE = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 
+// ValidateRequest validates the top-level request envelope and nested filter tree.
 func ValidateRequest(r Request) error {
 	if r.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("SchemaVersion must be %q", SchemaVersion)
@@ -27,6 +28,7 @@ func ValidateRequest(r Request) error {
 	return ValidateExpression(r.RequestFilter)
 }
 
+// ValidateExpression validates the recursive shape and values of an expression tree.
 func ValidateExpression(expr Expression) error {
 	switch e := expr.(type) {
 	case Comparison:
@@ -61,6 +63,7 @@ func ValidateExpression(expr Expression) error {
 	}
 }
 
+// validateComparison validates one comparison clause for operator/value compatibility.
 func validateComparison(c Comparison) error {
 	if c.Field == "" {
 		return errors.New("comparison.field is required")
@@ -107,6 +110,7 @@ func validateComparison(c Comparison) error {
 	}
 }
 
+// isScalar reports whether v can be represented as a scalar filter value.
 func isScalar(v any) bool {
 	switch v.(type) {
 	case nil, string, bool, float64, int, int8, int16, int32, int64, float32, uint, uint8, uint16, uint32, uint64:

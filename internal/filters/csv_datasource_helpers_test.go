@@ -9,6 +9,8 @@ import (
 	"testing"
 )
 
+// TestCompileAndAllowedFieldsForDataSource verifies compilation and allowed-fields generation
+// against an inferred datasource definition.
 func TestCompileAndAllowedFieldsForDataSource(t *testing.T) {
 	ds := DataSourceDefinition{
 		UUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
@@ -56,6 +58,7 @@ func TestCompileAndAllowedFieldsForDataSource(t *testing.T) {
 	}
 }
 
+// TestLoadCSVDataSource validates CSV loading, type inference, and row parsing behavior.
 func TestLoadCSVDataSource(t *testing.T) {
 	t.Parallel()
 
@@ -97,6 +100,7 @@ func TestLoadCSVDataSource(t *testing.T) {
 	}
 }
 
+// TestEvaluateExpressionAndComparison exercises recursive expression evaluation and operators.
 func TestEvaluateExpressionAndComparison(t *testing.T) {
 	fields := map[string]FieldDefinition{
 		"s": {FieldType: "string", SupportedOperators: toSet("eq", "contains", "startsWith", "endsWith", "in", "nin", "neq")},
@@ -162,6 +166,7 @@ func TestEvaluateExpressionAndComparison(t *testing.T) {
 	}
 }
 
+// TestCSVPrimitiveHelpers covers helper functions used by CSV parsing and inference paths.
 func TestCSVPrimitiveHelpers(t *testing.T) {
 	err := validateRequestEnvelope(FilterRequest{})
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "validateRequestEnvelope", FilterRequest{}, "error", err)

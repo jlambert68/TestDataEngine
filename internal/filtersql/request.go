@@ -7,6 +7,7 @@ import (
 
 const SchemaVersion = "1.0"
 
+// Request is the incoming filter contract used by the SQL compiler package.
 type Request struct {
 	SchemaVersion  string     `json:"SchemaVersion"`
 	RequestUUID    string     `json:"RequestUuid"`
@@ -15,6 +16,7 @@ type Request struct {
 	RequestFilter  Expression `json:"RequestFilter"`
 }
 
+// UnmarshalJSON parses RequestFilter as a typed Expression tree.
 func (r *Request) UnmarshalJSON(data []byte) error {
 	type alias struct {
 		SchemaVersion  string          `json:"SchemaVersion"`

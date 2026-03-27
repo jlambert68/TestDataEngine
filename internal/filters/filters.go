@@ -16,17 +16,20 @@ type FilterRequest struct {
 	RequestFilter  json.RawMessage `json:"RequestFilter"`
 }
 
+// Comparison describes a single field/operator/value clause.
 type Comparison struct {
 	Field string      `json:"field"`
 	Op    string      `json:"op"`
 	Value interface{} `json:"value"`
 }
 
+// CompiledFilter is a SQL-like representation of RequestFilter.
 type CompiledFilter struct {
 	WhereSQL string
 	Args     []interface{}
 }
 
+// FieldDefinition describes one datasource field and its filtering capabilities.
 type FieldDefinition struct {
 	FieldType          string
 	Nullable           bool
@@ -34,6 +37,7 @@ type FieldDefinition struct {
 	Description        string
 }
 
+// AllowedFieldResponse is returned to clients that ask which fields/operators are valid.
 type AllowedFieldResponse struct {
 	SchemaVersion  string               `json:"SchemaVersion"`
 	RequestUUID    string               `json:"RequestUuid"`
@@ -114,6 +118,7 @@ type DataSourceDefinition struct {
 	Fields map[string]FieldDefinition
 }
 
+// toSet creates a compact lookup set used for operator validation.
 func toSet(values ...string) map[string]struct{} {
 	m := make(map[string]struct{}, len(values))
 	for _, v := range values {
@@ -122,6 +127,7 @@ func toSet(values ...string) map[string]struct{} {
 	return m
 }
 
+// ValidateRequest performs envelope and datasource consistency checks.
 func ValidateRequest(req FilterRequest) error {
 	if req.SchemaVersion != "1.0" {
 		return fmt.Errorf("unsupported SchemaVersion: %q", req.SchemaVersion)
@@ -149,6 +155,7 @@ func ValidateRequest(req FilterRequest) error {
 	return nil
 }
 
+// GetAllowedFieldsResponse returns sorted field metadata for a known datasource.
 func GetAllowedFieldsResponse(schemaVersion, requestUUID, dataSourceUUID, dataSourceName string) (AllowedFieldResponse, error) {
 	if schemaVersion != "1.0" {
 		return AllowedFieldResponse{}, fmt.Errorf("unsupported SchemaVersion: %q", schemaVersion)
@@ -190,6 +197,7 @@ func GetAllowedFieldsResponse(schemaVersion, requestUUID, dataSourceUUID, dataSo
 	}, nil
 }
 
+// CompileRequest validates request metadata and compiles RequestFilter to SQL.
 func CompileRequest(req FilterRequest) (CompiledFilter, error) {
 	if err := ValidateRequest(req); err != nil {
 		return CompiledFilter{}, err
@@ -205,6 +213,7 @@ func CompileRequest(req FilterRequest) (CompiledFilter, error) {
 	}, nil
 }
 
+// compileExpression recursively compiles comparison/and/or/not nodes.
 func compileExpression(raw json.RawMessage, fields map[string]FieldDefinition) (string, []interface{}, error) {
 	var cmpProbe struct {
 		Field *string `json:"field"`
@@ -246,6 +255,7 @@ func compileExpression(raw json.RawMessage, fields map[string]FieldDefinition) (
 	return "", nil, errors.New("invalid expression: must be comparison, and, or, or not")
 }
 
+// compileLogical joins recursively compiled child expressions using AND/OR.
 func compileLogical(op string, parts []json.RawMessage, fields map[string]FieldDefinition) (string, []interface{}, error) {
 	if len(parts) == 0 {
 		return "", nil, fmt.Errorf("%s expression must contain at least one item", strings.ToLower(op))
@@ -266,6 +276,7 @@ func compileLogical(op string, parts []json.RawMessage, fields map[string]FieldD
 	return "(" + strings.Join(clauses, " "+op+" ") + ")", args, nil
 }
 
+// compileComparison validates operator/value semantics and emits SQL + args.
 func compileComparison(c Comparison, fields map[string]FieldDefinition) (string, []interface{}, error) {
 	if c.Field == "" {
 		return "", nil, errors.New("comparison.field is required")
@@ -437,6 +448,7 @@ func normalizeArray(v interface{}) ([]interface{}, error) {
 	return items, nil
 }
 
+// isSafeIdentifier prevents SQL injection through dynamic field names.
 func isSafeIdentifier(s string) bool {
 	if s == "" {
 		return false

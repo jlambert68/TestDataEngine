@@ -11,6 +11,7 @@ type badExpression struct{}
 
 func (badExpression) isExpression() {}
 
+// TestOperatorValid verifies operator enum validation behavior.
 func TestOperatorValid(t *testing.T) {
 	validOps := []Operator{OpEq, OpNeq, OpGt, OpGte, OpLt, OpLte, OpIn, OpNin, OpContains, OpStartsWith, OpEndsWith, OpExists}
 	for _, op := range validOps {
@@ -25,6 +26,7 @@ func TestOperatorValid(t *testing.T) {
 	}
 }
 
+// TestMarkerMethods ensures expression marker methods satisfy the interface.
 func TestMarkerMethods(t *testing.T) {
 	Comparison{}.isExpression()
 	AndExpression{}.isExpression()
@@ -33,6 +35,7 @@ func TestMarkerMethods(t *testing.T) {
 	logUnitCall(t, "22222222-2222-4222-8222-222222222222", "isExpression markers", "Comparison/And/Or/Not", "no panic", "ok")
 }
 
+// TestParseExpressionAndHasOnlyKey covers JSON parsing into expression tree nodes.
 func TestParseExpressionAndHasOnlyKey(t *testing.T) {
 	logUnitCall(t, "22222222-2222-4222-8222-222222222222", "hasOnlyKey", map[string]json.RawMessage{"and": []byte(`[]`)}, true, hasOnlyKey(map[string]json.RawMessage{"and": []byte(`[]`)}, "and"))
 	if !hasOnlyKey(map[string]json.RawMessage{"and": []byte(`[]`)}, "and") {
@@ -91,6 +94,7 @@ func TestParseExpressionAndHasOnlyKey(t *testing.T) {
 	}
 }
 
+// TestRequestUnmarshalJSON validates custom request unmarshalling with typed RequestFilter.
 func TestRequestUnmarshalJSON(t *testing.T) {
 	raw := []byte(`{
 	  "SchemaVersion":"1.0",
@@ -120,6 +124,7 @@ func TestRequestUnmarshalJSON(t *testing.T) {
 	}
 }
 
+// TestValidateRequestAndExpression validates request envelope and recursive expression checks.
 func TestValidateRequestAndExpression(t *testing.T) {
 	valid := Request{
 		SchemaVersion:  SchemaVersion,
@@ -185,6 +190,7 @@ func TestValidateRequestAndExpression(t *testing.T) {
 	}
 }
 
+// TestValidateComparisonAndScalarHelpers checks comparison validation and scalar helper behavior.
 func TestValidateComparisonAndScalarHelpers(t *testing.T) {
 	comparisonCases := []Comparison{
 		{Field: "x", Op: OpEq, Value: "v"},
@@ -228,6 +234,7 @@ func TestValidateComparisonAndScalarHelpers(t *testing.T) {
 	}
 }
 
+// TestCompilerCompileAndInternals exercises compiler output and key internal helpers.
 func TestCompilerCompileAndInternals(t *testing.T) {
 	compiler := Compiler{Placeholder: Dollar, QuoteIdent: true}
 	req := Request{

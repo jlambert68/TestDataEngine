@@ -1,4 +1,4 @@
-package filters
+package logging
 
 import (
 	"os"
