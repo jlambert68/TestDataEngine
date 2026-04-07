@@ -133,6 +133,13 @@ func (c Compiler) compileComparison(cmp Comparison, next int) (string, []any, er
 		}
 		return field + " IS NULL", nil, nil
 
+	case OpIsNull:
+		isNull := cmp.Value.(bool)
+		if isNull {
+			return field + " IS NULL", nil, nil
+		}
+		return field + " IS NOT NULL", nil, nil
+
 	default:
 		return "", nil, fmt.Errorf("unsupported operator %q", cmp.Op)
 	}

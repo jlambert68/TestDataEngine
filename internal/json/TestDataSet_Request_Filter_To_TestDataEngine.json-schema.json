@@ -101,6 +101,11 @@
           "const": "exists",
           "title": "Exists",
           "description": "Checks whether the field exists or is present. The value is usually true or false."
+        },
+        {
+          "const": "isNull",
+          "title": "Is null",
+          "description": "Checks whether the field value is null. The value must be true or false."
         }
       ]
     },
@@ -141,7 +146,7 @@
           "if": {
             "properties": {
               "op": {
-                "const": "exists"
+                "enum": ["exists", "isNull"]
               }
             },
             "required": ["op"]

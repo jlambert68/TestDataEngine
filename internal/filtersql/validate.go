@@ -73,10 +73,10 @@ func validateComparison(c Comparison) error {
 	}
 
 	switch c.Op {
-	case OpExists:
+	case OpExists, OpIsNull:
 		v, ok := c.Value.(bool)
 		if !ok {
-			return errors.New(`operator "exists" requires boolean value`)
+			return fmt.Errorf(`operator %q requires boolean value`, c.Op)
 		}
 		_ = v
 		return nil

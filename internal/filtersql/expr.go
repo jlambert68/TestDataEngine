@@ -21,12 +21,13 @@ const (
 	OpStartsWith Operator = "startsWith"
 	OpEndsWith   Operator = "endsWith"
 	OpExists     Operator = "exists"
+	OpIsNull     Operator = "isNull"
 )
 
 // Valid reports whether the operator is supported by the expression model.
 func (op Operator) Valid() bool {
 	switch op {
-	case OpEq, OpNeq, OpGt, OpGte, OpLt, OpLte, OpIn, OpNin, OpContains, OpStartsWith, OpEndsWith, OpExists:
+	case OpEq, OpNeq, OpGt, OpGte, OpLt, OpLte, OpIn, OpNin, OpContains, OpStartsWith, OpEndsWith, OpExists, OpIsNull:
 		return true
 	default:
 		return false

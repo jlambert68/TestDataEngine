@@ -99,13 +99,27 @@ func main() {
 	logging.Infof("35579f2f-4de2-4cc2-bf0a-bf579f31cf64", "WHERE=%s", compiled.WhereSQL)
 	logging.Infof("37f52f2f-fb8f-47dd-bf14-17c3a194ddbc", "ARGS=%v", compiled.Args)
 
-	allowedPretty, err := json.MarshalIndent(allowedResp, "", "  ")
+	allowedWithInputFilter := struct {
+		InputFilter           json.RawMessage              `json:"InputFilter"`
+		AllowedFieldsResponse filters.AllowedFieldResponse `json:"AllowedFieldsResponse"`
+	}{
+		InputFilter:           req.RequestFilter,
+		AllowedFieldsResponse: allowedResp,
+	}
+	allowedPretty, err := json.MarshalIndent(allowedWithInputFilter, "", "  ")
 	if err != nil {
 		logging.Fatalf("2e8c5ee6-241d-4f65-b82a-0877eef3644d", "failed to marshal allowed fields response: %v", err)
 	}
 	logging.Infof("15f177af-c4dc-4e86-a4e5-4f20fdf001d3", "AllowedFieldsResponse=%s", string(allowedPretty))
 
-	dataPretty, err := json.MarshalIndent(dataResp, "", "  ")
+	dataWithInputFilter := struct {
+		InputFilter     json.RawMessage         `json:"InputFilter"`
+		DataSetResponse filters.DataSetResponse `json:"DataSetResponse"`
+	}{
+		InputFilter:     req.RequestFilter,
+		DataSetResponse: dataResp,
+	}
+	dataPretty, err := json.MarshalIndent(dataWithInputFilter, "", "  ")
 	if err != nil {
 		logging.Fatalf("9efef5d2-f500-450f-929f-890f4d89f777", "failed to marshal data response: %v", err)
 	}

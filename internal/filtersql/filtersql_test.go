@@ -13,7 +13,7 @@ func (badExpression) isExpression() {}
 
 // TestOperatorValid verifies operator enum validation behavior.
 func TestOperatorValid(t *testing.T) {
-	validOps := []Operator{OpEq, OpNeq, OpGt, OpGte, OpLt, OpLte, OpIn, OpNin, OpContains, OpStartsWith, OpEndsWith, OpExists}
+	validOps := []Operator{OpEq, OpNeq, OpGt, OpGte, OpLt, OpLte, OpIn, OpNin, OpContains, OpStartsWith, OpEndsWith, OpExists, OpIsNull}
 	for _, op := range validOps {
 		logUnitCall(t, "22222222-2222-4222-8222-222222222222", "Operator.Valid", op, true, op.Valid())
 		if !op.Valid() {
@@ -198,6 +198,7 @@ func TestValidateComparisonAndScalarHelpers(t *testing.T) {
 		{Field: "x", Op: OpContains, Value: "abc"},
 		{Field: "x", Op: OpIn, Value: []any{"a", "b"}},
 		{Field: "x", Op: OpExists, Value: true},
+		{Field: "x", Op: OpIsNull, Value: false},
 	}
 	for _, cmp := range comparisonCases {
 		err := validateComparison(cmp)
@@ -211,6 +212,7 @@ func TestValidateComparisonAndScalarHelpers(t *testing.T) {
 		{Field: "", Op: OpEq, Value: "x"},
 		{Field: "x", Op: Operator("bad"), Value: "x"},
 		{Field: "x", Op: OpExists, Value: "yes"},
+		{Field: "x", Op: OpIsNull, Value: "yes"},
 		{Field: "x", Op: OpIn, Value: []any{}},
 		{Field: "x", Op: OpContains, Value: 1.0},
 		{Field: "x", Op: OpEq, Value: nil},
@@ -299,6 +301,11 @@ func TestCompilerCompileAndInternals(t *testing.T) {
 	}
 	if sql != `"x" IN ($1, $2)` || !reflect.DeepEqual(args, []any{"a", "b"}) {
 		t.Fatalf("unexpected IN compile result: %q %v", sql, args)
+	}
+	sql, args, err = compiler.compileComparison(Comparison{Field: "x", Op: OpIsNull, Value: true}, 1)
+	logUnitCall(t, "22222222-2222-4222-8222-222222222222", "Compiler.compileComparison", Comparison{Field: "x", Op: OpIsNull, Value: true}, `"x" IS NULL`, map[string]any{"sql": sql, "args": args, "err": err})
+	if err != nil || sql != `"x" IS NULL` || args != nil {
+		t.Fatalf("unexpected isNull compile result: %q %v %v", sql, args, err)
 	}
 
 	_, _, err = compiler.compileComparison(Comparison{Field: "x", Op: Operator("bad"), Value: "v"}, 1)

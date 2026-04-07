@@ -1,6 +1,7 @@
 GO ?= go
 PKG ?= ./...
 CMD ?= ./cmd/testdataengine
+SOURCE ?= csv
 
 CSV_PATH ?= testdata/pi26_2/FenixRawTestdata_646rows_211220_stripped.csv
 SQLITE_DB ?= testdata/SQLiteDB/identifier.sqlite
@@ -25,7 +26,7 @@ MATCH_SQLITE_TABLE ?= $(SQLITE_TABLE_DEFAULT)
 MATCH_MAX_ITEMS ?= 2
 MATCH_RANDOM_SEED_GUID ?= $(SEED_DETERMINISTIC_A)
 
-.PHONY: test test-verbose testv run-csv run-db run-csv-default run-csv-small run-db-default run-db-seeded run-csv-match run-db-match
+.PHONY: test test-verbose testv run-main run-main-csv run-main-sqlite run-csv run-db run-csv-default run-csv-small run-db-default run-db-seeded run-csv-match run-db-match
 
 test:
 	$(GO) test $(PKG)
@@ -35,11 +36,25 @@ test-verbose:
 
 testv:test-verbose
 
-# Start TestDataEngine using CSV as source.
+# Start TestDataEngine main entry point using the current source-related variables.
+run-main:
+	$(GO) run $(CMD) -source "$(SOURCE)" -csv "$(CSV_PATH)" -sqlite-db "$(SQLITE_DB)" -sqlite-table "$(SQLITE_TABLE)" -max-items $(MAX_ITEMS) -random-seed-guid "$(RANDOM_SEED_GUID)"
+
+# Start TestDataEngine main entry point using CSV as source.
+run-main-csv: SOURCE := csv
+run-main-csv: run-main
+
+# Start TestDataEngine main entry point using SQLite as source.
+run-main-sqlite: SOURCE := sqlite
+run-main-sqlite: run-main
+
+# Backward-compatible alias for CSV execution.
+run-csv: SOURCE := csv
 run-csv:
 	$(GO) run $(CMD) -source csv -csv "$(CSV_PATH)" -max-items $(MAX_ITEMS) -random-seed-guid "$(RANDOM_SEED_GUID)"
 
-# Start TestDataEngine using SQLite database as source.
+# Backward-compatible alias for SQLite execution.
+run-db: SOURCE := sqlite
 run-db:
 	$(GO) run $(CMD) -source sqlite -sqlite-db "$(SQLITE_DB)" -sqlite-table "$(SQLITE_TABLE)" -max-items $(MAX_ITEMS) -random-seed-guid "$(RANDOM_SEED_GUID)"
 
