@@ -1,0 +1,20 @@
+{
+  "TestDataSourceName": "SubCustody",
+  "TestDataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+  "JsonSchemaName": "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+  "JsonSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "TestDataSet response for a specific datasource",
+    "type": "object"
+  },
+  "UpdatedDateTime": "2026-04-09T10:00:00Z",
+  "DataSourceName": "SubCustody",
+  "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+  "Data": [
+    {
+      "AccountCurrency": "SEK",
+      "Amount": "100",
+      "Flag": "true"
+    }
+  ]
+}

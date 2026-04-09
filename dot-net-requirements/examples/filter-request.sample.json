@@ -1,0 +1,25 @@
+{
+  "SchemaVersion": "1.0",
+  "RequestUuid": "6e6e17c4-6cc0-4ef0-a1cf-e96f0c5f8b8f",
+  "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+  "DataSourceName": "SubCustody",
+  "RequestFilter": {
+    "and": [
+      {
+        "field": "AccountCurrency",
+        "op": "eq",
+        "value": "SEK"
+      },
+      {
+        "field": "AccountEnvironment",
+        "op": "eq",
+        "value": "SysTest"
+      },
+      {
+        "field": "ClientJuristictionCountryCode",
+        "op": "eq",
+        "value": "SE"
+      }
+    ]
+  }
+}
