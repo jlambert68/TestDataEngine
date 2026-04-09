@@ -7,7 +7,7 @@ public interface IRuntimeFilterCompiler
 
 public interface ITypedSqlCompiler
 {
-    CompiledFilter CompileTyped(FilterRequest request);
+    CompiledFilter CompileTyped(TypedSqlRequest request, TypedSqlCompilerOptions? options = null);
 }
 
 public interface IAllowedFieldsService

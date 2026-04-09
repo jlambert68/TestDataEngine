@@ -68,6 +68,7 @@ Implementation note for .NET:
 - The JSON contract is shape-based, not discriminator-based
 - A custom `JsonConverter` or equivalent parser is required to map JSON objects to the correct expression type
 - Node selection must follow the current Go behavior: inspect the object shape first, then choose comparison / `and` / `or` / `not`
+- The typed `filtersql` package and the runtime `filters` package should have separate model layers in .NET even when they serialize to very similar JSON
 
 ### Comparison
 
@@ -140,6 +141,7 @@ Example:
 - Allowed only on `number`, `integer`, `date`, `datetime`
 - CSV runtime compares numbers numerically
 - CSV runtime compares strings, dates, and datetimes lexicographically
+- SQLite and CSV inference currently produce `boolean`, `integer`, `number`, or `string`; they do not auto-infer `date` or `datetime`
 
 Example:
 
@@ -202,7 +204,7 @@ Row evaluation rules in the runtime engine:
 - `or` short-circuits on first true
 - `not` negates the nested expression result
 - Comparing any ordered operator against a null row value returns `false`
-- For equality, null equals null only
+- Internal equality helper logic treats `null == null` as true, but the public runtime comparison path rejects `eq` and `neq` with null filter values before evaluation
 
 Examples:
 
@@ -238,6 +240,17 @@ These are required compatibility details for the .NET rewrite.
 - Runtime `filters` public contract uses `exists` and `isNull` for null checks
 - Typed `filtersql` internal compiler helper supports `eq null` and `neq null`
 - Public typed request validation rejects `eq` and `neq` with null
+
+### Difference D: Header normalization
+
+- Runtime CSV query path uses `TrimSpace` and then removes BOM from the first header
+- Importer path removes BOM from the first header cell and then trims
+- This leads to different first-header behavior when BOM and leading spaces exist
+
+### Difference E: Typed compiler options
+
+- The typed `filtersql` compiler has explicit options for placeholder style and identifier quoting
+- The runtime `filters` compiler always uses `?` placeholders and quoted identifiers
 
 ## 2.6 SQLite Tables Required by the Runtime
 
@@ -295,6 +308,7 @@ Minimum required error categories:
 - missing DB path
 - missing schema file
 - invalid JSON schema metadata
+- invalid JSON payload in SQLite `JsonData`
 - invalid response schema name
 - invalid random seed GUID
 - CSV empty file or missing header

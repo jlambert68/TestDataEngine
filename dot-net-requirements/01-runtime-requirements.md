@@ -183,16 +183,28 @@ The typed `filtersql` compiler must support two placeholder modes:
 - `?`
 - `$1`, `$2`, `$3`
 
+The typed `filtersql` compiler must also support:
+
+- quoted identifiers
+- unquoted identifiers
+
 ## 1.7 CSV Rules
 
 The CSV datasource implementation must:
 
 - Use `;` as delimiter
 - Allow variable field counts per row
-- Trim whitespace from headers
-- Remove UTF-8 BOM from the first header cell
+- Trim whitespace from non-BOM headers
+- Remove UTF-8 BOM from the first header cell after the first trim step
 - Pad short rows with empty strings
 - Treat empty string and case-insensitive `NULL` as null
+
+Important current-behavior detail:
+
+- In the runtime CSV query path, the first header is processed as `TrimSpace` first and `TrimPrefix(BOM)` second
+- Because of that order, a first header like `"\ufeff A "` becomes `" A"`, not `"A"`
+- In the CSV-to-SQLite importer path, the order is reversed enough that the first header ends up fully trimmed
+- The .NET rewrite should preserve this difference if the goal is exact behavioral parity with the current code and tests
 
 Field type inference order:
 
@@ -208,6 +220,7 @@ Rules:
 - Else if all non-null values parse as numbers, the field type is `number`
 - Else the field type is `string`
 - If all values are null, the field type is `string`
+- Dates and datetimes are not inferred from raw CSV content in the current implementation
 
 Supported operators per inferred field type:
 
@@ -270,6 +283,7 @@ SQLite behavior:
 - The newest row by `UpdatedDateTime DESC` is used
 - If the metadata table does not exist, low-level query code stays backward compatible and returns no metadata
 - The main program still requires metadata because response-schema validation needs `JsonSchemaName`
+- If the metadata row exists but `JsonSchema` is not valid JSON, the SQLite query must fail
 
 ## 1.11 Schema Validation Rules
 
@@ -325,6 +339,11 @@ Default behavior:
 
 The main program logs two response objects, each wrapped with the original input filter:
 
+The main program also logs:
+
+- `WHERE=<compiled where sql>`
+- `ARGS=<compiled args>`
+
 Allowed-fields output shape:
 
 ```json
@@ -342,3 +361,8 @@ Dataset output shape:
   "DataSetResponse": { "...": "..." }
 }
 ```
+
+The log message payload keys are:
+
+- `AllowedFieldsResponse=...`
+- `DataSetResponse=...`

@@ -49,7 +49,10 @@ Must cover:
 - compiled SQL is non-empty
 - filtered result count is correct
 - returned row content is correct
-- header normalization removes BOM and trims spaces
+- runtime CSV header normalization exact behavior:
+  - BOM is removed from the first header cell
+  - non-first headers are trimmed normally
+  - first-header BOM-plus-space behavior matches current Go output
 - row normalization pads short rows
 - type inference:
   - boolean
@@ -57,6 +60,7 @@ Must cover:
   - number
   - string
   - all-null column becomes string
+  - date and datetime are not auto-inferred
 - null handling for empty string and `NULL`
 - operator evaluation:
   - `eq`
@@ -192,7 +196,7 @@ Must cover:
 - stored JSON payload values are correct
 - validation failure for empty options
 - missing CSV file failure
-- header normalization helper
+- importer header normalization helper
 - record normalization helper
 - payload builder helper
 - generated UUID format
@@ -213,7 +217,16 @@ Must cover:
 - local schema metadata enrichment fails for missing file
 - local metadata enrichment stores basename only
 
-## 3.9 Test Fixture Requirements
+## 3.9 Additional Behavior Tests
+
+Must also cover:
+
+- SQLite query remains backward compatible when `main.testdataset_response_schemas` does not exist
+- SQLite query fails when schema metadata row contains invalid JSON in `JsonSchema`
+- runtime CSV and importer header normalization remain intentionally different
+- main-program log output includes `WHERE=` and `ARGS=` lines before wrapped response payload logs
+
+## 3.10 Test Fixture Requirements
 
 The .NET test project should include or generate:
 
@@ -232,7 +245,7 @@ Examples of fixed GUIDs already used by the Go tests:
 - `bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb`
 - `cccccccc-cccc-4ccc-8ccc-cccccccccccc`
 
-## 3.10 Minimum Acceptance Criteria
+## 3.11 Minimum Acceptance Criteria
 
 The .NET rewrite is acceptable only if:
 

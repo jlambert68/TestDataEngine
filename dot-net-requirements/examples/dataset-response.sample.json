@@ -13,8 +13,8 @@
   "Data": [
     {
       "AccountCurrency": "SEK",
-      "Amount": "100",
-      "Flag": "true"
+      "Amount": 100,
+      "Flag": true
     }
   ]
 }
