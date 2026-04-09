@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TestDataSet response for a specific datasource",
+  "type": "object",
+  "required": [
+    "TestDataSourceName",
+    "TestDataSourceUuid",
+    "JsonSchemaName",
+    "JsonSchema",
+    "UpdatedDateTime",
+    "DataSourceName",
+    "DataSourceUuid",
+    "Data"
+  ],
+  "properties": {
+    "TestDataSourceName": {
+      "type": "string"
+    },
+    "TestDataSourceUuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "JsonSchemaName": {
+      "type": "string"
+    },
+    "JsonSchema": {
+      "type": "object"
+    },
+    "UpdatedDateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "DataSourceName": {
+      "type": "string"
+    },
+    "DataSourceUuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Data": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -12,6 +12,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const responseSchemaTable = "main.testdataset_response_schemas"
+
 // QuerySQLiteDataSource loads datasource rows from SQLite and runs the shared filter pipeline.
 func QuerySQLiteDataSource(
 	req FilterRequest,
@@ -47,11 +49,11 @@ func QuerySQLiteDataSourceWithSeed(
 		maxItems = 0
 	}
 
-	ds, rows, err := loadSQLiteDataSource(req, dbPath, tableName)
+	ds, rows, schemaMeta, err := loadSQLiteDataSource(req, dbPath, tableName)
 	if err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
-	return queryDataRows(req, ds, rows, "sqlite", maxItems, randomSeedGUID)
+	return queryDataRows(req, ds, rows, "sqlite", maxItems, randomSeedGUID, schemaMeta)
 }
 
 // loadSQLiteDataSource fetches JsonData rows, infers fields, and converts values to typed rows.
@@ -59,12 +61,17 @@ func loadSQLiteDataSource(
 	req FilterRequest,
 	dbPath string,
 	tableName string,
-) (DataSourceDefinition, []map[string]interface{}, error) {
+) (DataSourceDefinition, []map[string]interface{}, *DataSetSchemaMetadata, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return DataSourceDefinition{}, nil, fmt.Errorf("open sqlite db: %w", err)
+		return DataSourceDefinition{}, nil, nil, fmt.Errorf("open sqlite db: %w", err)
 	}
 	defer db.Close()
+
+	schemaMeta, err := loadDataSetSchemaMetadata(context.Background(), db, req)
+	if err != nil {
+		return DataSourceDefinition{}, nil, nil, err
+	}
 
 	query := fmt.Sprintf(
 		`SELECT JsonData FROM %s WHERE DataSourceUuid = ? AND DataSourceName = ?`,
@@ -72,7 +79,7 @@ func loadSQLiteDataSource(
 	)
 	rows, err := db.QueryContext(context.Background(), query, req.DataSourceUUID, req.DataSourceName)
 	if err != nil {
-		return DataSourceDefinition{}, nil, fmt.Errorf("query sqlite datasource rows: %w", err)
+		return DataSourceDefinition{}, nil, nil, fmt.Errorf("query sqlite datasource rows: %w", err)
 	}
 	defer rows.Close()
 
@@ -80,20 +87,20 @@ func loadSQLiteDataSource(
 	for rows.Next() {
 		var rawJSON string
 		if err := rows.Scan(&rawJSON); err != nil {
-			return DataSourceDefinition{}, nil, fmt.Errorf("scan sqlite row: %w", err)
+			return DataSourceDefinition{}, nil, nil, fmt.Errorf("scan sqlite row: %w", err)
 		}
 
 		var payload map[string]interface{}
 		if err := json.Unmarshal([]byte(rawJSON), &payload); err != nil {
-			return DataSourceDefinition{}, nil, fmt.Errorf("unmarshal JsonData: %w", err)
+			return DataSourceDefinition{}, nil, nil, fmt.Errorf("unmarshal JsonData: %w", err)
 		}
 		rawRows = append(rawRows, payload)
 	}
 	if err := rows.Err(); err != nil {
-		return DataSourceDefinition{}, nil, fmt.Errorf("iterate sqlite rows: %w", err)
+		return DataSourceDefinition{}, nil, nil, fmt.Errorf("iterate sqlite rows: %w", err)
 	}
 	if len(rawRows) == 0 {
-		return DataSourceDefinition{}, nil, fmt.Errorf("no data rows found for datasource %q (%s)", req.DataSourceName, req.DataSourceUUID)
+		return DataSourceDefinition{}, nil, nil, fmt.Errorf("no data rows found for datasource %q (%s)", req.DataSourceName, req.DataSourceUUID)
 	}
 
 	// Build inferred field definitions from all discovered JSON keys.
@@ -123,7 +130,7 @@ func loadSQLiteDataSource(
 			fieldDef := fields[field]
 			val, err := coerceRawValue(rawRow[field], fieldDef.FieldType)
 			if err != nil {
-				return DataSourceDefinition{}, nil, fmt.Errorf("sqlite row %d field %q: %w", idx+1, field, err)
+				return DataSourceDefinition{}, nil, nil, fmt.Errorf("sqlite row %d field %q: %w", idx+1, field, err)
 			}
 			row[field] = val
 		}
@@ -133,7 +140,47 @@ func loadSQLiteDataSource(
 	return DataSourceDefinition{
 		UUID:   req.DataSourceUUID,
 		Fields: fields,
-	}, typedRows, nil
+	}, typedRows, schemaMeta, nil
+}
+
+// loadDataSetSchemaMetadata fetches response-schema metadata for the requested datasource.
+func loadDataSetSchemaMetadata(ctx context.Context, db *sql.DB, req FilterRequest) (*DataSetSchemaMetadata, error) {
+	query := fmt.Sprintf(
+		`SELECT TestDataSourceName, TestDataSourceUuid, JsonSchemaName, JsonSchema, UpdatedDateTime
+FROM %s
+WHERE lower(TestDataSourceUuid) = lower(?) AND TestDataSourceName = ?
+ORDER BY UpdatedDateTime DESC
+LIMIT 1`,
+		responseSchemaTable,
+	)
+
+	var (
+		meta       DataSetSchemaMetadata
+		jsonSchema string
+	)
+	err := db.QueryRowContext(ctx, query, req.DataSourceUUID, req.DataSourceName).Scan(
+		&meta.TestDataSourceName,
+		&meta.TestDataSourceUUID,
+		&meta.JsonSchemaName,
+		&jsonSchema,
+		&meta.UpdatedDateTime,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		// Keep backward compatibility with SQLite DBs that predate the schema-metadata table.
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query response schema metadata: %w", err)
+	}
+	if !json.Valid([]byte(jsonSchema)) {
+		return nil, fmt.Errorf("invalid json schema in %s for datasource %q (%s)", responseSchemaTable, req.DataSourceName, req.DataSourceUUID)
+	}
+
+	meta.JsonSchema = json.RawMessage(jsonSchema)
+	return &meta, nil
 }
 
 // collectFieldOrder returns a stable sorted list of field names across all rows.

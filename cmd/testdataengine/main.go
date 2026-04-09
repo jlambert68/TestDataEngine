@@ -3,11 +3,22 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
 	"TestDataEngine/internal/filters"
 	"TestDataEngine/internal/logging"
+	"github.com/santhosh-tekuri/jsonschema/v5"
+)
+
+const (
+	requestSchemaPath      = "internal/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json"
+	responseSchemaDir      = "internal/json"
+	specificResponseSchema = "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json"
 )
 
 // main runs a sample filter request and prints both metadata and matching data rows.
@@ -65,6 +76,10 @@ func main() {
 		maxItems = 0
 	}
 
+	if err := validateRequestSchema(filterReqJSON); err != nil {
+		logging.Fatalf("9f8abf12-6d9c-4f47-a932-35e6ac4e0db6", "request schema validation failed: %v", err)
+	}
+
 	var (
 		compiled    filters.CompiledFilter
 		allowedResp filters.AllowedFieldResponse
@@ -82,12 +97,22 @@ func main() {
 		if err != nil {
 			logging.Fatalf("c2fd3f4f-1119-47d8-bbe7-28f159f57db2", "failed to query csv datasource: %v", err)
 		}
+		dataResp, err = applyLocalResponseSchemaMetadata(req, dataResp, specificResponseSchema)
+		if err != nil {
+			logging.Fatalf("15043fdf-3bbf-4a1e-8c77-cf66f01ca057", "csv response schema metadata enrichment failed: %v", err)
+		}
+		if err := validateCSVResponseSchema(dataResp); err != nil {
+			logging.Fatalf("6f93a9d0-53d8-4f25-a94e-8dad953ceb84", "csv response schema validation failed: %v", err)
+		}
 		logging.Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "Source=csv CSV=%s RandomSeedGuid=%s", csvPath, randomGUID)
 
 	case "sqlite":
 		compiled, allowedResp, dataResp, err = filters.QuerySQLiteDataSourceWithSeed(req, sqliteDB, sqliteTable, maxItems, randomGUID)
 		if err != nil {
 			logging.Fatalf("c2fd3f4f-1119-47d8-bbe7-28f159f57db2", "failed to query sqlite datasource: %v", err)
+		}
+		if err := validateSQLiteResponseSchema(dataResp); err != nil {
+			logging.Fatalf("4d3798c0-dd20-4de5-8f7f-6ad31bb3f2f3", "sqlite response schema validation failed: %v", err)
 		}
 		logging.Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "Source=sqlite DB=%s Table=%s RandomSeedGuid=%s", sqliteDB, sqliteTable, randomGUID)
 
@@ -124,4 +149,100 @@ func main() {
 		logging.Fatalf("9efef5d2-f500-450f-929f-890f4d89f777", "failed to marshal data response: %v", err)
 	}
 	logging.Infof("70e0f6f2-72fd-42bf-9f0e-f9afca6ebc52", "DataSetResponse=%s", string(dataPretty))
+}
+
+func validateSQLiteRequestSchema(raw []byte) error {
+	return validateRequestSchema(raw)
+}
+
+func validateRequestSchema(raw []byte) error {
+	return validateJSONAgainstSchemaFile(requestSchemaPath, raw)
+}
+
+func validateSQLiteResponseSchema(resp filters.DataSetResponse) error {
+	schemaName := strings.TrimSpace(resp.JsonSchemaName)
+	if schemaName == "" {
+		return fmt.Errorf("missing JsonSchemaName in DataSetResponse")
+	}
+
+	schemaPath := filepath.Join(responseSchemaDir, filepath.Base(schemaName))
+	payload, err := json.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("marshal response payload for schema validation: %w", err)
+	}
+	return validateJSONAgainstSchemaFile(schemaPath, payload)
+}
+
+func validateCSVResponseSchema(resp filters.DataSetResponse) error {
+	return validateSQLiteResponseSchema(resp)
+}
+
+func validateJSONAgainstSchemaFile(schemaPath string, payload []byte) error {
+	resolvedSchemaPath, err := resolveSchemaPath(schemaPath)
+	if err != nil {
+		return err
+	}
+
+	compiler := jsonschema.NewCompiler()
+	schema, err := compiler.Compile(resolvedSchemaPath)
+	if err != nil {
+		return fmt.Errorf("compile schema %q: %w", schemaPath, err)
+	}
+
+	var doc interface{}
+	if err := json.Unmarshal(payload, &doc); err != nil {
+		return fmt.Errorf("decode payload JSON: %w", err)
+	}
+	if err := schema.Validate(doc); err != nil {
+		return fmt.Errorf("validate payload against %q: %w", schemaPath, err)
+	}
+	return nil
+}
+
+func resolveSchemaPath(schemaPath string) (string, error) {
+	candidates := []string{
+		schemaPath,
+		filepath.Join("..", "..", schemaPath),
+	}
+
+	if _, thisFile, _, ok := runtime.Caller(0); ok {
+		baseDir := filepath.Dir(thisFile)
+		candidates = append(candidates, filepath.Join(baseDir, "..", "..", schemaPath))
+	}
+
+	for _, candidate := range candidates {
+		clean := filepath.Clean(candidate)
+		if _, err := os.Stat(clean); err == nil {
+			abs, err := filepath.Abs(clean)
+			if err != nil {
+				return "", fmt.Errorf("resolve schema path %q: %w", clean, err)
+			}
+			return abs, nil
+		}
+	}
+
+	return "", fmt.Errorf("resolve schema path %q: no matching file found", schemaPath)
+}
+
+func applyLocalResponseSchemaMetadata(req filters.FilterRequest, resp filters.DataSetResponse, schemaName string) (filters.DataSetResponse, error) {
+	schemaPath := filepath.Join(responseSchemaDir, filepath.Base(schemaName))
+	resolved, err := resolveSchemaPath(schemaPath)
+	if err != nil {
+		return resp, err
+	}
+
+	rawSchema, err := os.ReadFile(resolved)
+	if err != nil {
+		return resp, fmt.Errorf("read response schema %q: %w", schemaPath, err)
+	}
+	if !json.Valid(rawSchema) {
+		return resp, fmt.Errorf("response schema %q does not contain valid JSON", schemaPath)
+	}
+
+	resp.TestDataSourceName = req.DataSourceName
+	resp.TestDataSourceUUID = req.DataSourceUUID
+	resp.JsonSchemaName = filepath.Base(schemaName)
+	resp.JsonSchema = json.RawMessage(rawSchema)
+	resp.UpdatedDateTime = time.Now().UTC().Format(time.RFC3339)
+	return resp, nil
 }

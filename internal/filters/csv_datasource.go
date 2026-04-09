@@ -16,9 +16,23 @@ import (
 )
 
 type DataSetResponse struct {
-	DataSourceName string                   `json:"DataSourceName"`
-	DataSourceUUID string                   `json:"DataSourceUuid"`
-	Data           []map[string]interface{} `json:"Data"`
+	TestDataSourceName string                   `json:"TestDataSourceName,omitempty"`
+	TestDataSourceUUID string                   `json:"TestDataSourceUuid,omitempty"`
+	JsonSchemaName     string                   `json:"JsonSchemaName,omitempty"`
+	JsonSchema         json.RawMessage          `json:"JsonSchema,omitempty"`
+	UpdatedDateTime    string                   `json:"UpdatedDateTime,omitempty"`
+	DataSourceName     string                   `json:"DataSourceName"`
+	DataSourceUUID     string                   `json:"DataSourceUuid"`
+	Data               []map[string]interface{} `json:"Data"`
+}
+
+// DataSetSchemaMetadata carries datasource-level response schema metadata loaded from SQLite.
+type DataSetSchemaMetadata struct {
+	TestDataSourceName string
+	TestDataSourceUUID string
+	JsonSchemaName     string
+	JsonSchema         json.RawMessage
+	UpdatedDateTime    string
 }
 
 // QueryCSVDataSource loads rows from a CSV file, applies RequestFilter, and returns matches.
@@ -49,7 +63,7 @@ func QueryCSVDataSourceWithSeed(
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
 
-	return queryDataRows(req, ds, rows, "csv", maxItems, randomSeedGUID)
+	return queryDataRows(req, ds, rows, "csv", maxItems, randomSeedGUID, nil)
 }
 
 // queryDataRows runs the shared filtering pipeline used by CSV and SQLite sources.
@@ -60,6 +74,7 @@ func queryDataRows(
 	sourceLabel string,
 	maxItems int,
 	randomSeedGUID string,
+	schemaMeta *DataSetSchemaMetadata,
 ) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
 	compiled, err := compileRequestForDataSource(req, ds)
 	if err != nil {
@@ -91,11 +106,19 @@ func queryDataRows(
 		filtered = filtered[:maxItems]
 	}
 
-	return compiled, allowed, DataSetResponse{
+	resp := DataSetResponse{
 		DataSourceName: req.DataSourceName,
 		DataSourceUUID: req.DataSourceUUID,
 		Data:           filtered,
-	}, nil
+	}
+	if schemaMeta != nil {
+		resp.TestDataSourceName = schemaMeta.TestDataSourceName
+		resp.TestDataSourceUUID = schemaMeta.TestDataSourceUUID
+		resp.JsonSchemaName = schemaMeta.JsonSchemaName
+		resp.JsonSchema = schemaMeta.JsonSchema
+		resp.UpdatedDateTime = schemaMeta.UpdatedDateTime
+	}
+	return compiled, allowed, resp, nil
 }
 
 // shuffleRows randomizes row order in-place.

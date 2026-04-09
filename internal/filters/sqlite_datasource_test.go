@@ -3,6 +3,7 @@ package filters
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -41,6 +42,21 @@ func TestQuerySQLiteDataSource(t *testing.T) {
 	}
 	if got := dataResp.Data[0]["AccountCurrency"]; got != "SEK" {
 		t.Fatalf("expected AccountCurrency=SEK, got %#v", got)
+	}
+	if dataResp.TestDataSourceName != req.DataSourceName {
+		t.Fatalf("expected TestDataSourceName=%q, got %q", req.DataSourceName, dataResp.TestDataSourceName)
+	}
+	if dataResp.TestDataSourceUUID != req.DataSourceUUID {
+		t.Fatalf("expected TestDataSourceUuid=%q, got %q", req.DataSourceUUID, dataResp.TestDataSourceUUID)
+	}
+	if dataResp.JsonSchemaName != "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json" {
+		t.Fatalf("unexpected JsonSchemaName: %q", dataResp.JsonSchemaName)
+	}
+	if !json.Valid(dataResp.JsonSchema) {
+		t.Fatalf("expected JsonSchema to contain valid JSON, got %q", string(dataResp.JsonSchema))
+	}
+	if dataResp.UpdatedDateTime == "" {
+		t.Fatal("expected UpdatedDateTime to be populated from schema metadata table")
 	}
 
 	_, _, unboundedResp, err := QuerySQLiteDataSource(req, dbPath, "main.data_items", 0)
@@ -154,6 +170,19 @@ create table main.data_items
 		t.Fatalf("create schema: %v", err)
 	}
 
+	metadataSchema := `
+create table main.testdataset_response_schemas
+(
+    TestDataSourceName TEXT not null,
+    TestDataSourceUuid TEXT not null,
+    JsonSchemaName     TEXT not null,
+    JsonSchema         TEXT not null,
+    UpdatedDateTime    TEXT not null
+);`
+	if _, err := db.ExecContext(context.Background(), metadataSchema); err != nil {
+		t.Fatalf("create metadata schema: %v", err)
+	}
+
 	insert := `
 insert into main.data_items
   (DataSourceUuid, DataSourceName, DataUuid, DataUpdateTimeStamp, JsonDataUuid, JsonData)
@@ -193,5 +222,25 @@ values (?, ?, ?, ?, ?, ?)`
 		); err != nil {
 			t.Fatalf("insert test row: %v", err)
 		}
+	}
+
+	const responseSchemaJSON = `{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TestDataSet for a specific TestDataSource",
+  "type": "object",
+  "required": ["TestDataSourceName", "TestDataSourceUuid", "Data"]
+}`
+	if _, err := db.ExecContext(
+		context.Background(),
+		`insert into main.testdataset_response_schemas
+  (TestDataSourceName, TestDataSourceUuid, JsonSchemaName, JsonSchema, UpdatedDateTime)
+values (?, ?, ?, ?, ?)`,
+		"SubCustody",
+		"110cc994-a913-4041-96fe-a96d7e0c97e8",
+		"TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+		responseSchemaJSON,
+		"2026-04-09T10:00:00Z",
+	); err != nil {
+		t.Fatalf("insert metadata row: %v", err)
 	}
 }

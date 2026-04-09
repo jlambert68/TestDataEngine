@@ -1,0 +1,79 @@
+{
+  "Examples": [
+    {
+      "ExampleName": "LibraryResponse_SingleRow",
+      "Description": "DataSetResponse returned from QueryCSVDataSource/QuerySQLiteDataSource with one matched row.",
+      "Payload": {
+        "DataSourceName": "SubCustody",
+        "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+        "Data": [
+          {
+            "TestDataId": 60,
+            "AccountId": 1174424,
+            "DirectClientCustodyAccountId": 1174432,
+            "AccountCurrency": "SEK",
+            "AccountEnvironment": "SysTest",
+            "ClientJuristictionCountryCode": "SE",
+            "DebitOrCredit": "CRDT",
+            "c": "INSECHZZXXX",
+            "MarketCountry": "CH",
+            "MarketName": "Switzerland",
+            "MarketSubType": "BBH",
+            "AccountType": "B",
+            "PooledCashAccount": 1164581,
+            "Nostro": 52018108107,
+            "MarketCurrency": "USD",
+            "ISIN": "US0000077810",
+            "SecurityType": "AKTIER",
+            "ProvisionalIncome": "No"
+          }
+        ]
+      }
+    },
+    {
+      "ExampleName": "LibraryResponse_ZeroRows",
+      "Description": "Valid response when no rows match the filter.",
+      "Payload": {
+        "DataSourceName": "SubCustody",
+        "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+        "Data": []
+      }
+    },
+    {
+      "ExampleName": "CLILoggedResponse_WithInputFilter",
+      "Description": "DataSetResponse shape as logged by cmd/testdataengine/main.go.",
+      "Payload": {
+        "InputFilter": {
+          "and": [
+            {
+              "field": "AccountCurrency",
+              "op": "eq",
+              "value": "SEK"
+            },
+            {
+              "field": "AccountEnvironment",
+              "op": "eq",
+              "value": "SysTest"
+            },
+            {
+              "field": "ClientJuristictionCountryCode",
+              "op": "eq",
+              "value": "SE"
+            }
+          ]
+        },
+        "DataSetResponse": {
+          "DataSourceName": "SubCustody",
+          "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+          "Data": [
+            {
+              "AccountCurrency": "SEK",
+              "AccountEnvironment": "SysTest",
+              "ClientJuristictionCountryCode": "SE"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
