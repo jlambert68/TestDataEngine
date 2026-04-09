@@ -12,6 +12,7 @@ import (
 
 	"TestDataEngine/internal/filters"
 	"TestDataEngine/internal/logging"
+
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
@@ -95,7 +96,7 @@ func main() {
 		}
 		compiled, allowedResp, dataResp, err = filters.QueryCSVDataSourceWithSeed(req, csvPath, maxItems, randomGUID)
 		if err != nil {
-			logging.Fatalf("c2fd3f4f-1119-47d8-bbe7-28f159f57db2", "failed to query csv datasource: %v", err)
+			logging.Fatalf("6f0f24b3-7e8b-425b-8de3-2b055116c430", "failed to query csv datasource: %v", err)
 		}
 		dataResp, err = applyLocalResponseSchemaMetadata(req, dataResp, specificResponseSchema)
 		if err != nil {
@@ -104,7 +105,7 @@ func main() {
 		if err := validateCSVResponseSchema(dataResp); err != nil {
 			logging.Fatalf("6f93a9d0-53d8-4f25-a94e-8dad953ceb84", "csv response schema validation failed: %v", err)
 		}
-		logging.Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "Source=csv CSV=%s RandomSeedGuid=%s", csvPath, randomGUID)
+		logging.Infof("8428b438-123c-40d8-a7ca-ff5b4e87f832", "Source=csv CSV=%s RandomSeedGuid=%s", csvPath, randomGUID)
 
 	case "sqlite":
 		compiled, allowedResp, dataResp, err = filters.QuerySQLiteDataSourceWithSeed(req, sqliteDB, sqliteTable, maxItems, randomGUID)

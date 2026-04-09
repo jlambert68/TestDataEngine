@@ -25,8 +25,9 @@ MATCH_SQLITE_DB ?= $(SQLITE_DB_DEFAULT)
 MATCH_SQLITE_TABLE ?= $(SQLITE_TABLE_DEFAULT)
 MATCH_MAX_ITEMS ?= 2
 MATCH_RANDOM_SEED_GUID ?= $(SEED_DETERMINISTIC_A)
+UUID_CHECK_DIR ?= uuid-duplicate-check
 
-.PHONY: test test-verbose testv run-main run-main-csv run-main-sqlite run-csv run-db run-csv-default run-csv-small run-db-default run-db-seeded run-csv-match run-db-match
+.PHONY: test test-verbose testv run-main run-main-csv run-main-sqlite run-csv run-db run-csv-default run-csv-small run-db-default run-db-seeded run-csv-match run-db-match uuid-extract uuid-duplicates uuid-duplicates-check
 
 test:
 	$(GO) test $(PKG)
@@ -96,3 +97,14 @@ run-db-match: SQLITE_TABLE := $(MATCH_SQLITE_TABLE)
 run-db-match: MAX_ITEMS := $(MATCH_MAX_ITEMS)
 run-db-match: RANDOM_SEED_GUID := $(MATCH_RANDOM_SEED_GUID)
 run-db-match: run-db
+
+# Extract logging UUIDs into uuid-duplicate-check/extracted_logging_uuids.txt.
+uuid-extract:
+	python3 $(UUID_CHECK_DIR)/extract_logging_uuids.py
+
+# Parse extracted UUIDs and write duplicates into uuid-duplicate-check/duplicate_logging_uuids.txt.
+uuid-duplicates:
+	python3 $(UUID_CHECK_DIR)/find_duplicate_uuids.py
+
+# Run full UUID duplicate check flow.
+uuid-duplicates-check: uuid-extract uuid-duplicates
