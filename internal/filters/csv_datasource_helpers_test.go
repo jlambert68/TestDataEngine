@@ -348,3 +348,66 @@ func TestCSVPrimitiveHelpers(t *testing.T) {
 		t.Fatalf("expected request validation error, got %v", err)
 	}
 }
+
+func TestDataSetResponseMarshalJSONUsesWrappedSpecificDatasourceShape(t *testing.T) {
+	t.Parallel()
+
+	resp := DataSetResponse{
+		SchemaVersion:  "1.0",
+		DataSourceName: "SubCustody",
+		DataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
+		JsonSchemaName: legacySpecificDatasourceResponseSchemaName,
+		Data: []map[string]interface{}{
+			{
+				"TestDataId":                    int64(479),
+				"ClientJuristictionCountryCode": "SE",
+				"ContraCurrency":                "NULL",
+				"Random":                        1459.805176,
+				"SecProgram":                    "NULL",
+			},
+		},
+	}
+
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+
+	var doc map[string]interface{}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal marshaled response: %v", err)
+	}
+
+	if got := doc["JsonSchemaName"]; got != SpecificDatasourceResponseSchemaName {
+		t.Fatalf("unexpected canonical JsonSchemaName: %#v", got)
+	}
+
+	testData, ok := doc["TestData"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected TestData object, got %#v", doc["TestData"])
+	}
+	if got := testData["SpecificSourceSchemaVersion"]; got != "1.0" {
+		t.Fatalf("unexpected SpecificSourceSchemaVersion: %#v", got)
+	}
+
+	rows, ok := testData["TestDataSet"].([]interface{})
+	if !ok || len(rows) != 1 {
+		t.Fatalf("expected TestDataSet array with one row, got %#v", testData["TestDataSet"])
+	}
+	row, ok := rows[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected row object, got %#v", rows[0])
+	}
+	if got := row["ClientJurisdictionCountryCode"]; got != "SE" {
+		t.Fatalf("expected corrected ClientJurisdictionCountryCode, got %#v", got)
+	}
+	if got := row["ContraCurrency"]; got != nil {
+		t.Fatalf("expected ContraCurrency null, got %#v", got)
+	}
+	if got := row["SecProgram"]; got != nil {
+		t.Fatalf("expected SecProgram null, got %#v", got)
+	}
+	if got := row["Random"]; got != "1459,805176" {
+		t.Fatalf("expected Random string with comma decimal, got %#v", got)
+	}
+}

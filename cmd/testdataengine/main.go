@@ -19,7 +19,7 @@ import (
 const (
 	requestSchemaPath      = "internal/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json"
 	responseSchemaDir      = "internal/json"
-	specificResponseSchema = "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json"
+	specificResponseSchema = filters.SpecificDatasourceResponseSchemaName
 )
 
 // main runs a sample filter request and prints both metadata and matching data rows.
@@ -161,12 +161,12 @@ func validateRequestSchema(raw []byte) error {
 }
 
 func validateSQLiteResponseSchema(resp filters.DataSetResponse) error {
-	schemaName := strings.TrimSpace(resp.JsonSchemaName)
+	schemaName := filters.CanonicalResponseSchemaName(resp.JsonSchemaName)
 	if schemaName == "" {
 		return fmt.Errorf("missing JsonSchemaName in DataSetResponse")
 	}
 
-	schemaPath := filepath.Join(responseSchemaDir, filepath.Base(schemaName))
+	schemaPath := filepath.Join(responseSchemaDir, schemaName)
 	payload, err := json.Marshal(resp)
 	if err != nil {
 		return fmt.Errorf("marshal response payload for schema validation: %w", err)
@@ -226,7 +226,8 @@ func resolveSchemaPath(schemaPath string) (string, error) {
 }
 
 func applyLocalResponseSchemaMetadata(req filters.FilterRequest, resp filters.DataSetResponse, schemaName string) (filters.DataSetResponse, error) {
-	schemaPath := filepath.Join(responseSchemaDir, filepath.Base(schemaName))
+	schemaBase := filters.CanonicalResponseSchemaName(schemaName)
+	schemaPath := filepath.Join(responseSchemaDir, schemaBase)
 	resolved, err := resolveSchemaPath(schemaPath)
 	if err != nil {
 		return resp, err
@@ -242,7 +243,7 @@ func applyLocalResponseSchemaMetadata(req filters.FilterRequest, resp filters.Da
 
 	resp.TestDataSourceName = req.DataSourceName
 	resp.TestDataSourceUUID = req.DataSourceUUID
-	resp.JsonSchemaName = filepath.Base(schemaName)
+	resp.JsonSchemaName = schemaBase
 	resp.JsonSchema = json.RawMessage(rawSchema)
 	resp.UpdatedDateTime = time.Now().UTC().Format(time.RFC3339)
 	return resp, nil

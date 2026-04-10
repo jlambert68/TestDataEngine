@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/test-dataset-response.schema.json",
+  "title": "TestDataSet response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "SchemaVersion",
+    "DataSourceName",
+    "DataSourceUuid",
+    "JsonSchemaName",
+    "Data"
+  ],
+  "properties": {
+    "SchemaVersion": {
+      "type": "string",
+      "title": "General Schema version",
+      "description": "Version of the general response schema.",
+      "enum": [
+        "1.0"
+      ]
+    },
+    "TestDataSourceName": {
+      "type": "string"
+    },
+    "TestDataSourceUuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "JsonSchemaName": {
+      "type": "string"
+    },
+    "Data": {
+      "type": "object",
+      "SpecificTestData": {
+        "$ref": "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json"
+      }
+    }
+  }
+}

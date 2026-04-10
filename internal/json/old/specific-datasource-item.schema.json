@@ -22,7 +22,12 @@
     "MarketCurrency",
     "ISIN",
     "SecurityType",
-    "ProvisionalIncome"
+    "ProvisionalIncome",
+    "ContraCurrency",
+    "InterimCurrency",
+    "PrincipalOrIncome",
+    "Random",
+    "SecProgram"
   ],
   "properties": {
     "TestDataId": {
@@ -37,7 +42,8 @@
     "AccountCurrency": {
       "type": "string",
       "minLength": 3,
-      "maxLength": 3
+      "maxLength": 3,
+      "pattern": "^[A-Z]{3}$"
     },
     "AccountEnvironment": {
       "type": "string"
@@ -45,7 +51,8 @@
     "ClientJurisdictionCountryCode": {
       "type": "string",
       "minLength": 2,
-      "maxLength": 2
+      "maxLength": 2,
+      "pattern": "^[A-Z]{2}$"
     },
     "DebitOrCredit": {
       "type": "string"
@@ -56,7 +63,8 @@
     "MarketCountry": {
       "type": "string",
       "minLength": 2,
-      "maxLength": 2
+      "maxLength": 2,
+      "pattern": "^[A-Z]{2}$"
     },
     "MarketName": {
       "type": "string"
@@ -76,7 +84,8 @@
     "MarketCurrency": {
       "type": "string",
       "minLength": 3,
-      "maxLength": 3
+      "maxLength": 3,
+      "pattern": "^[A-Z]{3}$"
     },
     "ISIN": {
       "type": "string",
@@ -88,6 +97,62 @@
     },
     "ProvisionalIncome": {
       "type": "string"
+    },
+    "ContraCurrency": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$"
+        }
+      ]
+    },
+    "InterimCurrency": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$"
+        }
+      ]
+    },
+    "PrincipalOrIncome": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "Random": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "SecProgram": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ]
     }
   }
 }

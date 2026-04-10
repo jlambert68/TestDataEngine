@@ -3,16 +3,21 @@
   "title": "TestDataSet response for a specific datasource",
   "type": "object",
   "required": [
+    "SchemaVersion",
     "TestDataSourceName",
     "TestDataSourceUuid",
     "JsonSchemaName",
-    "JsonSchema",
-    "UpdatedDateTime",
-    "DataSourceName",
-    "DataSourceUuid",
-    "Data"
+    "TestData"
   ],
   "properties": {
+    "SchemaVersion": {
+      "type": "string",
+      "title": "Specific Schema version",
+      "description": "Version of the specific response schema.",
+      "enum": [
+        "1.0"
+      ]
+    },
     "TestDataSourceName": {
       "type": "string"
     },
@@ -23,27 +28,8 @@
     "JsonSchemaName": {
       "type": "string"
     },
-    "JsonSchema": {
+    "TestData": {
       "type": "object"
-    },
-    "UpdatedDateTime": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "DataSourceName": {
-      "type": "string"
-    },
-    "DataSourceUuid": {
-      "type": "string",
-      "format": "uuid"
-    },
-    "Data": {
-      "type": "array",
-      "minItems": 0,
-      "items": {
-        "type": "object",
-        "additionalProperties": true
-      }
     }
   },
   "additionalProperties": false

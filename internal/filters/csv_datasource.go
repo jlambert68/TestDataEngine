@@ -10,20 +10,36 @@ import (
 	"hash/fnv"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
+const (
+	SpecificDatasourceResponseSchemaName       = "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json"
+	legacySpecificDatasourceResponseSchemaName = "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json"
+)
+
 type DataSetResponse struct {
+	SchemaVersion      string                   `json:"SchemaVersion,omitempty"`
 	TestDataSourceName string                   `json:"TestDataSourceName,omitempty"`
 	TestDataSourceUUID string                   `json:"TestDataSourceUuid,omitempty"`
 	JsonSchemaName     string                   `json:"JsonSchemaName,omitempty"`
-	JsonSchema         json.RawMessage          `json:"JsonSchema,omitempty"`
-	UpdatedDateTime    string                   `json:"UpdatedDateTime,omitempty"`
-	DataSourceName     string                   `json:"DataSourceName"`
-	DataSourceUUID     string                   `json:"DataSourceUuid"`
-	Data               []map[string]interface{} `json:"Data"`
+	TestData           []map[string]interface{} `json:"TestData,omitempty"`
+
+	// Internal-only compatibility fields. These are kept out of JSON output, but existing code
+	// and tests still read them directly.
+	JsonSchema      json.RawMessage          `json:"-"`
+	UpdatedDateTime string                   `json:"-"`
+	DataSourceName  string                   `json:"-"`
+	DataSourceUUID  string                   `json:"-"`
+	Data            []map[string]interface{} `json:"-"`
+}
+
+type specificDatasourceTestData struct {
+	SpecificSourceSchemaVersion string                   `json:"SpecificSourceSchemaVersion"`
+	TestDataSet                 []map[string]interface{} `json:"TestDataSet"`
 }
 
 // DataSetSchemaMetadata carries datasource-level response schema metadata loaded from SQLite.
@@ -107,18 +123,152 @@ func queryDataRows(
 	}
 
 	resp := DataSetResponse{
+		SchemaVersion:  req.SchemaVersion,
 		DataSourceName: req.DataSourceName,
 		DataSourceUUID: req.DataSourceUUID,
 		Data:           filtered,
+		TestData:       filtered,
 	}
 	if schemaMeta != nil {
 		resp.TestDataSourceName = schemaMeta.TestDataSourceName
 		resp.TestDataSourceUUID = schemaMeta.TestDataSourceUUID
-		resp.JsonSchemaName = schemaMeta.JsonSchemaName
+		resp.JsonSchemaName = CanonicalResponseSchemaName(schemaMeta.JsonSchemaName)
 		resp.JsonSchema = schemaMeta.JsonSchema
 		resp.UpdatedDateTime = schemaMeta.UpdatedDateTime
 	}
 	return compiled, allowed, resp, nil
+}
+
+// MarshalJSON emits the schema-driven response contract while preserving internal fields for code use.
+func (r DataSetResponse) MarshalJSON() ([]byte, error) {
+	testData := r.TestData
+	if testData == nil {
+		testData = r.Data
+	}
+	schemaVersion := schemaVersionOrDefault(r.SchemaVersion)
+	testDataSourceName := r.TestDataSourceName
+	if strings.TrimSpace(testDataSourceName) == "" {
+		testDataSourceName = r.DataSourceName
+	}
+	testDataSourceUUID := r.TestDataSourceUUID
+	if strings.TrimSpace(testDataSourceUUID) == "" {
+		testDataSourceUUID = r.DataSourceUUID
+	}
+	jsonSchemaName := CanonicalResponseSchemaName(r.JsonSchemaName)
+
+	payload := struct {
+		SchemaVersion      string                     `json:"SchemaVersion"`
+		TestDataSourceName string                     `json:"TestDataSourceName"`
+		TestDataSourceUUID string                     `json:"TestDataSourceUuid"`
+		JsonSchemaName     string                     `json:"JsonSchemaName"`
+		TestData           specificDatasourceTestData `json:"TestData"`
+	}{
+		SchemaVersion:      schemaVersion,
+		TestDataSourceName: testDataSourceName,
+		TestDataSourceUUID: testDataSourceUUID,
+		JsonSchemaName:     jsonSchemaName,
+		TestData: specificDatasourceTestData{
+			SpecificSourceSchemaVersion: schemaVersion,
+			TestDataSet:                 normalizeSpecificDatasourceRows(testData),
+		},
+	}
+	return json.Marshal(payload)
+}
+
+func CanonicalResponseSchemaName(name string) string {
+	base := filepath.Base(strings.TrimSpace(name))
+	if base == "" || base == "." {
+		return ""
+	}
+	if base == legacySpecificDatasourceResponseSchemaName {
+		return SpecificDatasourceResponseSchemaName
+	}
+	return base
+}
+
+func schemaVersionOrDefault(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "1.0"
+	}
+	return v
+}
+
+func normalizeSpecificDatasourceRows(rows []map[string]interface{}) []map[string]interface{} {
+	if rows == nil {
+		return []map[string]interface{}{}
+	}
+
+	out := make([]map[string]interface{}, 0, len(rows))
+	for _, row := range rows {
+		normalized := make(map[string]interface{}, len(row))
+		for key, value := range row {
+			switch key {
+			case "ClientJuristictionCountryCode":
+				normalized["ClientJurisdictionCountryCode"] = value
+			case "ContraCurrency", "InterimCurrency", "PrincipalOrIncome", "SecProgram":
+				normalized[key] = normalizeNullableStringValue(value)
+			case "Random":
+				normalized[key] = normalizeRandomValue(value)
+			default:
+				normalized[key] = value
+			}
+		}
+		out = append(out, normalized)
+	}
+	return out
+}
+
+func normalizeNullableStringValue(v interface{}) interface{} {
+	s, ok := v.(string)
+	if !ok {
+		return v
+	}
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || strings.EqualFold(trimmed, "NULL") {
+		return nil
+	}
+	return trimmed
+}
+
+func normalizeRandomValue(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	switch t := v.(type) {
+	case string:
+		trimmed := strings.TrimSpace(t)
+		if trimmed == "" || strings.EqualFold(trimmed, "NULL") {
+			return nil
+		}
+		return trimmed
+	case float64:
+		return strings.ReplaceAll(strconv.FormatFloat(t, 'f', -1, 64), ".", ",")
+	case float32:
+		return strings.ReplaceAll(strconv.FormatFloat(float64(t), 'f', -1, 64), ".", ",")
+	case int:
+		return strconv.Itoa(t)
+	case int8:
+		return strconv.FormatInt(int64(t), 10)
+	case int16:
+		return strconv.FormatInt(int64(t), 10)
+	case int32:
+		return strconv.FormatInt(int64(t), 10)
+	case int64:
+		return strconv.FormatInt(t, 10)
+	case uint:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint64:
+		return strconv.FormatUint(t, 10)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // shuffleRows randomizes row order in-place.

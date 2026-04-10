@@ -292,6 +292,12 @@ The main program must validate:
 - request JSON against `internal/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json`
 - final response JSON against the specific response schema
 
+Mirrored copies for the `.NET` rewrite pack are included in:
+
+- `dot-net-requirements/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json`
+- `dot-net-requirements/json/TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json`
+- `dot-net-requirements/json/TestDataSet_Response_From_TestDataEngine_Examples.json`
+
 Rules:
 
 - Resolve schema path from local working directory and source-relative fallback paths

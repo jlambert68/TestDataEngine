@@ -179,6 +179,7 @@ LIMIT 1`,
 		return nil, fmt.Errorf("invalid json schema in %s for datasource %q (%s)", responseSchemaTable, req.DataSourceName, req.DataSourceUUID)
 	}
 
+	meta.JsonSchemaName = CanonicalResponseSchemaName(meta.JsonSchemaName)
 	meta.JsonSchema = json.RawMessage(jsonSchema)
 	return &meta, nil
 }

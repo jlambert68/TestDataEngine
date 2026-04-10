@@ -43,16 +43,15 @@ func TestValidateSQLiteResponseSchema(t *testing.T) {
 	t.Parallel()
 
 	resp := filters.DataSetResponse{
+		SchemaVersion:      "1.0",
 		TestDataSourceName: "SubCustody",
 		TestDataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
-		JsonSchemaName:     "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+		JsonSchemaName:     filters.SpecificDatasourceResponseSchemaName,
 		JsonSchema:         json.RawMessage(`{"type":"object"}`),
 		UpdatedDateTime:    "2026-04-09T00:00:00Z",
 		DataSourceName:     "SubCustody",
 		DataSourceUUID:     "110cc994-a913-4041-96fe-a96d7e0c97e8",
-		Data: []map[string]interface{}{
-			{"AccountCurrency": "SEK"},
-		},
+		Data:               []map[string]interface{}{},
 	}
 	if err := validateSQLiteResponseSchema(resp); err != nil {
 		t.Fatalf("expected valid sqlite response schema, got error: %v", err)
@@ -64,20 +63,36 @@ func TestValidateSQLiteResponseSchema(t *testing.T) {
 	}
 }
 
+func TestValidateSQLiteResponseSchemaLegacySchemaNameAlias(t *testing.T) {
+	t.Parallel()
+
+	resp := filters.DataSetResponse{
+		SchemaVersion:      "1.0",
+		TestDataSourceName: "SubCustody",
+		TestDataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
+		JsonSchemaName:     "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+		DataSourceName:     "SubCustody",
+		DataSourceUUID:     "110cc994-a913-4041-96fe-a96d7e0c97e8",
+		Data:               []map[string]interface{}{},
+	}
+	if err := validateSQLiteResponseSchema(resp); err != nil {
+		t.Fatalf("expected legacy sqlite schema filename alias to validate, got error: %v", err)
+	}
+}
+
 func TestValidateCSVResponseSchema(t *testing.T) {
 	t.Parallel()
 
 	resp := filters.DataSetResponse{
+		SchemaVersion:      "1.0",
 		TestDataSourceName: "SubCustody",
 		TestDataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
-		JsonSchemaName:     "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+		JsonSchemaName:     filters.SpecificDatasourceResponseSchemaName,
 		JsonSchema:         json.RawMessage(`{"type":"object"}`),
 		UpdatedDateTime:    "2026-04-09T00:00:00Z",
 		DataSourceName:     "SubCustody",
 		DataSourceUUID:     "110cc994-a913-4041-96fe-a96d7e0c97e8",
-		Data: []map[string]interface{}{
-			{"AccountCurrency": "SEK"},
-		},
+		Data:               []map[string]interface{}{},
 	}
 	if err := validateCSVResponseSchema(resp); err != nil {
 		t.Fatalf("expected valid csv response schema, got error: %v", err)
@@ -88,16 +103,15 @@ func TestValidateSQLiteResponseSchemaWithPathTraversalSchemaName(t *testing.T) {
 	t.Parallel()
 
 	resp := filters.DataSetResponse{
+		SchemaVersion:      "1.0",
 		TestDataSourceName: "SubCustody",
 		TestDataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
-		JsonSchemaName:     "../../TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+		JsonSchemaName:     "../../TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json",
 		JsonSchema:         json.RawMessage(`{"type":"object"}`),
 		UpdatedDateTime:    "2026-04-09T00:00:00Z",
 		DataSourceName:     "SubCustody",
 		DataSourceUUID:     "110cc994-a913-4041-96fe-a96d7e0c97e8",
-		Data: []map[string]interface{}{
-			{"AccountCurrency": "SEK"},
-		},
+		Data:               []map[string]interface{}{},
 	}
 	if err := validateSQLiteResponseSchema(resp); err != nil {
 		t.Fatalf("expected path-traversal-style JsonSchemaName to still resolve by basename, got: %v", err)
@@ -108,6 +122,7 @@ func TestValidateSQLiteResponseSchemaUnknownSchemaName(t *testing.T) {
 	t.Parallel()
 
 	resp := filters.DataSetResponse{
+		SchemaVersion:      "1.0",
 		TestDataSourceName: "SubCustody",
 		TestDataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
 		JsonSchemaName:     "does-not-exist.json",
@@ -115,9 +130,7 @@ func TestValidateSQLiteResponseSchemaUnknownSchemaName(t *testing.T) {
 		UpdatedDateTime:    "2026-04-09T00:00:00Z",
 		DataSourceName:     "SubCustody",
 		DataSourceUUID:     "110cc994-a913-4041-96fe-a96d7e0c97e8",
-		Data: []map[string]interface{}{
-			{"AccountCurrency": "SEK"},
-		},
+		Data:               []map[string]interface{}{},
 	}
 	if err := validateSQLiteResponseSchema(resp); err == nil {
 		t.Fatal("expected validation error for unknown JsonSchemaName")
@@ -166,7 +179,7 @@ func TestApplyLocalResponseSchemaMetadata(t *testing.T) {
 		Data:           []map[string]interface{}{{"AccountCurrency": "SEK"}},
 	}
 
-	enriched, err := applyLocalResponseSchemaMetadata(req, resp, "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json")
+	enriched, err := applyLocalResponseSchemaMetadata(req, resp, filters.SpecificDatasourceResponseSchemaName)
 	if err != nil {
 		t.Fatalf("expected metadata enrichment to succeed, got error: %v", err)
 	}
@@ -207,12 +220,12 @@ func TestApplyLocalResponseSchemaMetadataErrorsAndBasename(t *testing.T) {
 	enriched, err := applyLocalResponseSchemaMetadata(
 		req,
 		resp,
-		"../../TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+		"../../TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json",
 	)
 	if err != nil {
 		t.Fatalf("expected basename schema name resolution to succeed, got: %v", err)
 	}
-	if enriched.JsonSchemaName != "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json" {
+	if enriched.JsonSchemaName != filters.SpecificDatasourceResponseSchemaName {
 		t.Fatalf("expected basename-only JsonSchemaName, got %q", enriched.JsonSchemaName)
 	}
 }

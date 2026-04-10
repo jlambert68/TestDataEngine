@@ -1,0 +1,99 @@
+{
+  "Examples": [
+    {
+      "ExampleName": "GeneralResponse_SingleSpecificDatasourceResponse_FromCsvRow",
+      "Description": "Example matching TestDataSet_Response_General-json-schema.json. The top-level Data array contains exactly one specific datasource response built from a real row in FenixRawTestdata_646rows_211220_stripped.csv.",
+      "Payload": {
+        "DataSourceName": "SubCustody",
+        "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+        "Data": [
+          {
+            "TestDataSourceName": "SubCustody",
+            "TestDataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+            "JsonSchemaName": "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+            "JsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TestDataSet response for a specific datasource",
+              "type": "object",
+              "required": [
+                "TestDataSourceName",
+                "TestDataSourceUuid",
+                "JsonSchemaName",
+                "JsonSchema",
+                "UpdatedDateTime",
+                "DataSourceName",
+                "DataSourceUuid",
+                "Data"
+              ],
+              "properties": {
+                "TestDataSourceName": {
+                  "type": "string"
+                },
+                "TestDataSourceUuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "JsonSchemaName": {
+                  "type": "string"
+                },
+                "JsonSchema": {
+                  "type": "object"
+                },
+                "UpdatedDateTime": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "DataSourceName": {
+                  "type": "string"
+                },
+                "DataSourceUuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "Data": {
+                  "type": "array",
+                  "minItems": 0,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "UpdatedDateTime": "2026-04-09T10:00:00Z",
+            "DataSourceName": "SubCustody",
+            "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+            "Data": [
+              {
+                "TestDataId": 60,
+                "AccountId": 1174424,
+                "DirectClientCustodyAccountId": 1174432,
+                "AccountCurrency": "SEK",
+                "AccountEnvironment": "SysTest",
+                "ClientJuristictionCountryCode": "SE",
+                "DebitOrCredit": "CRDT",
+                "c": "INSECHZZXXX",
+                "MarketCountry": "CH",
+                "MarketName": "Switzerland",
+                "MarketSubType": "BBH",
+                "AccountType": "B",
+                "PooledCashAccount": 1164581,
+                "Nostro": 52018108107,
+                "MarketCurrency": "USD",
+                "ISIN": "US0000077810",
+                "SecurityType": "AKTIER",
+                "InterimCurrency": null,
+                "ContraCurrency": null,
+                "PrincipalOrIncome": null,
+                "SecProgram": null,
+                "ProvisionalIncome": "No",
+                "Random": 1459.805176
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

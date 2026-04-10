@@ -49,7 +49,7 @@ func TestQuerySQLiteDataSource(t *testing.T) {
 	if dataResp.TestDataSourceUUID != req.DataSourceUUID {
 		t.Fatalf("expected TestDataSourceUuid=%q, got %q", req.DataSourceUUID, dataResp.TestDataSourceUUID)
 	}
-	if dataResp.JsonSchemaName != "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json" {
+	if dataResp.JsonSchemaName != SpecificDatasourceResponseSchemaName {
 		t.Fatalf("unexpected JsonSchemaName: %q", dataResp.JsonSchemaName)
 	}
 	if !json.Valid(dataResp.JsonSchema) {
@@ -237,7 +237,7 @@ values (?, ?, ?, ?, ?, ?)`
 values (?, ?, ?, ?, ?)`,
 		"SubCustody",
 		"110cc994-a913-4041-96fe-a96d7e0c97e8",
-		"TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
+		legacySpecificDatasourceResponseSchemaName,
 		responseSchemaJSON,
 		"2026-04-09T10:00:00Z",
 	); err != nil {
