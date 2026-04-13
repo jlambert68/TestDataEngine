@@ -1,5 +1,10 @@
 # 2. Contract Details
 
+Schema authority note:
+
+- Only root-level files directly under `internal/json` are authoritative.
+- Do not treat `internal/json/old`, `P26_2`, `testdata/pi26_2`, or `dot-net-requirements/json` as contract-defining schema sources.
+
 ## 2.1 Runtime `filters` Contract
 
 This is the contract used by the CSV and SQLite query engine.
@@ -44,22 +49,25 @@ This is the contract used by the CSV and SQLite query engine.
 
 ```json
 {
+  "SchemaVersion": "1.0",
   "TestDataSourceName": "SubCustody",
   "TestDataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
-  "JsonSchemaName": "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
-  "JsonSchema": {
-    "type": "object"
-  },
-  "UpdatedDateTime": "2026-04-09T10:00:00Z",
-  "DataSourceName": "SubCustody",
-  "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
-  "Data": [
-    {
-      "AccountCurrency": "SEK"
-    }
-  ]
+  "JsonSchemaName": "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json",
+  "TestData": {
+    "SpecificSourceSchemaVersion": "1.0",
+    "TestDataSet": [
+      {
+        "AccountCurrency": "SEK"
+      }
+    ]
+  }
 }
 ```
+
+Important:
+
+- `JsonSchema`, `UpdatedDateTime`, `DataSourceName`, `DataSourceUuid`, and the raw `Data` slice exist in the Go runtime as internal state.
+- Those fields are not part of the emitted JSON contract after `DataSetResponse` is marshaled.
 
 ## 2.2 Expression Shape Rules
 

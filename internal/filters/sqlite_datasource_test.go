@@ -226,9 +226,52 @@ values (?, ?, ?, ?, ?, ?)`
 
 	const responseSchemaJSON = `{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "TestDataSet for a specific TestDataSource",
+  "title": "TestDataSet response for a specific datasource",
   "type": "object",
-  "required": ["TestDataSourceName", "TestDataSourceUuid", "Data"]
+  "additionalProperties": false,
+  "required": ["SchemaVersion", "TestDataSourceName", "TestDataSourceUuid", "JsonSchemaName", "TestData"],
+  "properties": {
+    "SchemaVersion": {
+      "type": "string",
+      "enum": ["1.0"]
+    },
+    "TestDataSourceName": {
+      "type": "string"
+    },
+    "TestDataSourceUuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "JsonSchemaName": {
+      "type": "string"
+    },
+    "TestData": {
+      "$ref": "#/$defs/TestData"
+    }
+  },
+  "$defs": {
+    "TestData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["SpecificSourceSchemaVersion", "TestDataSet"],
+      "properties": {
+        "SpecificSourceSchemaVersion": {
+          "type": "string",
+          "enum": ["1.0"]
+        },
+        "TestDataSet": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TestDataSetItem"
+          }
+        }
+      }
+    },
+    "TestDataSetItem": {
+      "type": "object",
+      "additionalProperties": false
+    }
+  }
 }`
 	if _, err := db.ExecContext(
 		context.Background(),
@@ -237,7 +280,7 @@ values (?, ?, ?, ?, ?, ?)`
 values (?, ?, ?, ?, ?)`,
 		"SubCustody",
 		"110cc994-a913-4041-96fe-a96d7e0c97e8",
-		legacySpecificDatasourceResponseSchemaName,
+		SpecificDatasourceResponseSchemaName,
 		responseSchemaJSON,
 		"2026-04-09T10:00:00Z",
 	); err != nil {

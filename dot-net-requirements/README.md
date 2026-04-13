@@ -12,19 +12,23 @@ Use these files in this order:
 6. [sql/sqlite-schema.sql](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/sql/sqlite-schema.sql)
 7. [examples/filter-request.sample.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/examples/filter-request.sample.json)
 8. [examples/dataset-response.sample.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/examples/dataset-response.sample.json)
-9. [json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json)
-10. [json/TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json)
-11. [json/TestDataSet_Response_From_TestDataEngine_Examples.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Response_From_TestDataEngine_Examples.json)
+9. [TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/internal/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json)
+10. [TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/internal/json/TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json)
+11. [TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine_Examples.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/internal/json/TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine_Examples.json)
 
-Bundled JSON contract assets copied from `internal/json`:
+Schema authority:
+
+- Only the root-level files directly under [internal/json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/internal/json) are authoritative.
+- Do not use `internal/json/old`, `P26_2`, `testdata/pi26_2`, or `dot-net-requirements/json` as the source of truth.
+- Files under [dot-net-requirements/json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json) are documentation snapshots only.
+
+Reference snapshots included in this pack:
 
 - [TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json)
 - [TestDataSet_Request_Filter_To_TestDataEngine_Examples.md](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Request_Filter_To_TestDataEngine_Examples.md)
-- [TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json)
+- [TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json)
 - [TestDataSet_Response_From_TestDataEngine_Examples.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/TestDataSet_Response_From_TestDataEngine_Examples.json)
 - [example-output.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/example-output.json)
-- [specific-datasource-item.schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/specific-datasource-item.schema.json)
-- [test-dataset-response.schema.json](/home/jlambert/egen_kod/go/go_workspace/src/jlambert/TestDataEngine/dot-net-requirements/json/test-dataset-response.schema.json)
 
 Authoritative behavior for the rewrite:
 

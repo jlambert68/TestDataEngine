@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/filter-schema.json",
+  "title": "Filter request schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["SchemaVersion", "RequestUuid", "DataSourceUuid", "DataSourceName", "RequestFilter"],
+  "properties": {
+    "SchemaVersion": {
+      "type": "string",
+      "title": "Schema version",
+      "description": "Version of the request payload schema.",
+      "enum": ["1.0"]
+    },
+    "RequestUuid": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Unique Request UUID",
+      "description": "Identifies the the request."
+    },
+    "DataSourceUuid": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Data source UUID",
+      "description": "Identifies the data source to query by its UUID."
+    },
+    "DataSourceName": {
+      "type": "string",
+      "title": "Data source Name",
+      "description": "Identifies the data source to query by its name."
+    },
+    "RequestFilter": {
+      "$ref": "#/$defs/expression"
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "string",
+      "title": "Field",
+      "description": "Name of the field/column to filter on."
+    },
+    "operator": {
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "eq",
+          "title": "Equal",
+          "description": "The field value must be exactly equal to the provided value."
+        },
+        {
+          "const": "neq",
+          "title": "Not equal",
+          "description": "The field value must be different from the provided value."
+        },
+        {
+          "const": "gt",
+          "title": "Greater than",
+          "description": "The field value must be greater than the provided value. Typically used for numbers or dates."
+        },
+        {
+          "const": "gte",
+          "title": "Greater than or equal",
+          "description": "The field value must be greater than or equal to the provided value. Typically used for numbers or dates."
+        },
+        {
+          "const": "lt",
+          "title": "Less than",
+          "description": "The field value must be less than the provided value. Typically used for numbers or dates."
+        },
+        {
+          "const": "lte",
+          "title": "Less than or equal",
+          "description": "The field value must be less than or equal to the provided value. Typically used for numbers or dates."
+        },
+        {
+          "const": "in",
+          "title": "In list",
+          "description": "The field value must match one of the values in the provided array."
+        },
+        {
+          "const": "nin",
+          "title": "Not in list",
+          "description": "The field value must not match any of the values in the provided array."
+        },
+        {
+          "const": "contains",
+          "title": "Contains",
+          "description": "The field value must contain the provided text. Typically used for strings."
+        },
+        {
+          "const": "startsWith",
+          "title": "Starts with",
+          "description": "The field value must start with the provided text. Typically used for strings."
+        },
+        {
+          "const": "endsWith",
+          "title": "Ends with",
+          "description": "The field value must end with the provided text. Typically used for strings."
+        },
+        {
+          "const": "exists",
+          "title": "Exists",
+          "description": "Checks whether the field exists or is present. The value is usually true or false."
+        },
+        {
+          "const": "isNull",
+          "title": "Is null",
+          "description": "Checks whether the field value is null. The value must be true or false."
+        }
+      ]
+    },
+    "scalarValue": {
+      "type": ["string", "number", "integer", "boolean", "null"]
+    },
+    "value": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/scalarValue"
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/scalarValue"
+          }
+        }
+      ]
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "op"],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/field"
+        },
+        "op": {
+          "$ref": "#/$defs/operator"
+        },
+        "value": {
+          "$ref": "#/$defs/value"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": ["exists", "isNull"]
+              }
+            },
+            "required": ["op"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "boolean"
+              }
+            },
+            "required": ["value"]
+          },
+          "else": {
+            "required": ["value"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": ["in", "nin"]
+              }
+            },
+            "required": ["op"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/scalarValue"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": ["contains", "startsWith", "endsWith"]
+              }
+            },
+            "required": ["op"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "andExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["and"],
+      "properties": {
+        "and": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/expression"
+          }
+        }
+      }
+    },
+    "orExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["or"],
+      "properties": {
+        "or": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/expression"
+          }
+        }
+      }
+    },
+    "notExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["not"],
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/expression"
+        }
+      }
+    },
+    "expression": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/comparison"
+        },
+        {
+          "$ref": "#/$defs/andExpression"
+        },
+        {
+          "$ref": "#/$defs/orExpression"
+        },
+        {
+          "$ref": "#/$defs/notExpression"
+        }
+      ]
+    }
+  }
+}

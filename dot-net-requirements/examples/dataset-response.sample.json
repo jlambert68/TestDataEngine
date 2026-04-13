@@ -1,20 +1,36 @@
 {
+  "SchemaVersion": "1.0",
   "TestDataSourceName": "SubCustody",
   "TestDataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
-  "JsonSchemaName": "TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json",
-  "JsonSchema": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "TestDataSet response for a specific datasource",
-    "type": "object"
-  },
-  "UpdatedDateTime": "2026-04-09T10:00:00Z",
-  "DataSourceName": "SubCustody",
-  "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
-  "Data": [
-    {
-      "AccountCurrency": "SEK",
-      "Amount": 100,
-      "Flag": true
-    }
-  ]
+  "JsonSchemaName": "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json",
+  "TestData": {
+    "SpecificSourceSchemaVersion": "1.0",
+    "TestDataSet": [
+      {
+        "TestDataId": 479,
+        "AccountId": 2000251,
+        "DirectClientCustodyAccountId": 4000251,
+        "AccountCurrency": "SEK",
+        "AccountEnvironment": "SysTest",
+        "ClientJurisdictionCountryCode": "SE",
+        "DebitOrCredit": "CRDT",
+        "c": "MGTCBEBEXXX",
+        "MarketCountry": "EU",
+        "MarketName": "Euroclear",
+        "MarketSubType": "Other bank",
+        "AccountType": "C",
+        "PooledCashAccount": 1182633,
+        "Nostro": 52018108263,
+        "MarketCurrency": "NOK",
+        "ISIN": "NO9900027190",
+        "SecurityType": "RÄNTEBÄRANDE",
+        "ProvisionalIncome": "No",
+        "ContraCurrency": "SEK",
+        "InterimCurrency": "EUR",
+        "PrincipalOrIncome": "INCOME",
+        "Random": "3206244,829",
+        "SecProgram": null
+      }
+    ]
+  }
 }

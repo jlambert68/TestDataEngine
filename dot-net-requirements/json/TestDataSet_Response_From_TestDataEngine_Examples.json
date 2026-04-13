@@ -1,0 +1,99 @@
+{
+  "Examples": [
+    {
+      "ExampleName": "WireResponse_SingleRow",
+      "Description": "JSON emitted when the runtime DataSetResponse is marshaled for validation or logging.",
+      "Payload": {
+        "SchemaVersion": "1.0",
+        "TestDataSourceName": "SubCustody",
+        "TestDataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+        "JsonSchemaName": "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json",
+        "TestData": {
+          "SpecificSourceSchemaVersion": "1.0",
+          "TestDataSet": [
+            {
+              "TestDataId": 60,
+              "AccountId": 1174424,
+              "DirectClientCustodyAccountId": 1174432,
+              "AccountCurrency": "SEK",
+              "AccountEnvironment": "SysTest",
+              "ClientJurisdictionCountryCode": "SE",
+              "DebitOrCredit": "CRDT",
+              "c": "INSECHZZXXX",
+              "MarketCountry": "CH",
+              "MarketName": "Switzerland",
+              "MarketSubType": "BBH",
+              "AccountType": "B",
+              "PooledCashAccount": 1164581,
+              "Nostro": 52018108107,
+              "MarketCurrency": "USD",
+              "ISIN": "US0000077810",
+              "SecurityType": "AKTIER",
+              "ProvisionalIncome": "No",
+              "ContraCurrency": null,
+              "InterimCurrency": null,
+              "PrincipalOrIncome": null,
+              "Random": "1459,805176",
+              "SecProgram": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "ExampleName": "WireResponse_ZeroRows",
+      "Description": "Valid marshaled response when no rows match the filter.",
+      "Payload": {
+        "SchemaVersion": "1.0",
+        "TestDataSourceName": "SubCustody",
+        "TestDataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+        "JsonSchemaName": "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json",
+        "TestData": {
+          "SpecificSourceSchemaVersion": "1.0",
+          "TestDataSet": []
+        }
+      }
+    },
+    {
+      "ExampleName": "CLILoggedResponse_WithInputFilter",
+      "Description": "DataSetResponse shape as logged by cmd/testdataengine/main.go.",
+      "Payload": {
+        "InputFilter": {
+          "and": [
+            {
+              "field": "AccountCurrency",
+              "op": "eq",
+              "value": "SEK"
+            },
+            {
+              "field": "AccountEnvironment",
+              "op": "eq",
+              "value": "SysTest"
+            },
+            {
+              "field": "ClientJuristictionCountryCode",
+              "op": "eq",
+              "value": "SE"
+            }
+          ]
+        },
+        "DataSetResponse": {
+          "SchemaVersion": "1.0",
+          "TestDataSourceName": "SubCustody",
+          "TestDataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+          "JsonSchemaName": "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json",
+          "TestData": {
+            "SpecificSourceSchemaVersion": "1.0",
+            "TestDataSet": [
+              {
+                "AccountCurrency": "SEK",
+                "AccountEnvironment": "SysTest",
+                "ClientJurisdictionCountryCode": "SE"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

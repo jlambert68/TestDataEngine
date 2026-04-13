@@ -1,0 +1,89 @@
+{
+  "SchemaVersion": "1.0",
+  "RequestUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+  "DataSourceUuid": "220cc994-a913-4041-96fe-a96d7e0c97e8",
+  "DataSourceName": "Orders",
+  "AllowedFields": [
+    {
+      "FieldName": "amount",
+      "FieldType": "number",
+      "Nullable": false,
+      "SupportedOperators": [
+        "eq",
+        "neq",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "nin",
+        "exists",
+        "isNull"
+      ],
+      "Description": "Total order amount."
+    },
+    {
+      "FieldName": "createdAt",
+      "FieldType": "datetime",
+      "Nullable": false,
+      "SupportedOperators": [
+        "eq",
+        "neq",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "nin",
+        "exists",
+        "isNull"
+      ],
+      "Description": "Order creation timestamp."
+    },
+    {
+      "FieldName": "customerEmail",
+      "FieldType": "string",
+      "Nullable": true,
+      "SupportedOperators": [
+        "eq",
+        "neq",
+        "contains",
+        "startsWith",
+        "endsWith",
+        "exists",
+        "isNull"
+      ],
+      "Description": "Customer email address."
+    },
+    {
+      "FieldName": "priority",
+      "FieldType": "boolean",
+      "Nullable": false,
+      "SupportedOperators": [
+        "eq",
+        "neq",
+        "exists",
+        "isNull"
+      ],
+      "Description": "Whether the order is marked as priority."
+    },
+    {
+      "FieldName": "status",
+      "FieldType": "string",
+      "Nullable": false,
+      "SupportedOperators": [
+        "eq",
+        "neq",
+        "in",
+        "nin",
+        "contains",
+        "startsWith",
+        "endsWith",
+        "exists",
+        "isNull"
+      ],
+      "Description": "Current order status."
+    }
+  ]
+}
+

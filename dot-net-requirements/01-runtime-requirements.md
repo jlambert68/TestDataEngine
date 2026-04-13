@@ -259,22 +259,33 @@ These rules apply to both CSV and SQLite flows:
 
 ## 1.10 Response Metadata Rules
 
-`DataSetResponse` contains two metadata layers:
+The runtime keeps two response layers:
 
-- Request datasource identity:
+- Internal response state:
   - `DataSourceName`
   - `DataSourceUuid`
-- Response-schema metadata:
+- `Data`
+- Response-schema metadata loaded or attached before validation:
   - `TestDataSourceName`
   - `TestDataSourceUuid`
   - `JsonSchemaName`
   - `JsonSchema`
   - `UpdatedDateTime`
 
+When the final response is marshaled to JSON, the emitted wire contract is:
+
+- `SchemaVersion`
+- `TestDataSourceName`
+- `TestDataSourceUuid`
+- `JsonSchemaName`
+- `TestData`
+  - `SpecificSourceSchemaVersion`
+  - `TestDataSet`
+
 CSV behavior:
 
 - The main program enriches CSV responses from local JSON schema files
-- `JsonSchemaName` is set to the basename of the configured schema file
+- `JsonSchemaName` is set to the basename of the configured schema file and canonicalized to the current response schema filename
 - `UpdatedDateTime` is set to current UTC time in RFC3339 format
 
 SQLite behavior:
@@ -290,21 +301,22 @@ SQLite behavior:
 The main program must validate:
 
 - request JSON against `internal/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json`
-- final response JSON against the specific response schema
+- final response JSON against `internal/json/TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json`
 
-Mirrored copies for the `.NET` rewrite pack are included in:
+Authoritative schema rule:
 
-- `dot-net-requirements/json/TestDataSet_Request_Filter_To_TestDataEngine.json-schema.json`
-- `dot-net-requirements/json/TestDataSet_Response_For_Specific_DatasourceFrom_TestDataEngine.json-schema.json`
-- `dot-net-requirements/json/TestDataSet_Response_From_TestDataEngine_Examples.json`
+- Only root-level files directly under `internal/json` are authoritative.
+- Do not use `internal/json/old`, `P26_2`, `testdata/pi26_2`, or `dot-net-requirements/json` as the schema source of truth.
+- Files under `dot-net-requirements/json` are snapshots for documentation only.
 
 Rules:
 
 - Resolve schema path from local working directory and source-relative fallback paths
-- For response validation, only the basename of `JsonSchemaName` is trusted
+- For response validation, only the basename of `JsonSchemaName` is trusted and it must resolve to a root-level file directly under `internal/json`
 - Missing schema files must fail
 - Invalid payload JSON must fail
 - Path-traversal-style schema names must resolve by basename only
+- The legacy response schema filename without `_From_` may be accepted as an alias, but it must canonicalize to `TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json`
 
 ## 1.12 Logging Rules
 

@@ -33,7 +33,7 @@
     "Data": {
       "type": "object",
       "SpecificTestData": {
-        "$ref": "TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json"
+        "$ref": "../TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json"
       }
     }
   }

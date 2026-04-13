@@ -49,6 +49,9 @@ Must cover:
 - compiled SQL is non-empty
 - filtered result count is correct
 - returned row content is correct
+- marshaled dataset response uses the wrapped `TestData` object with:
+  - `SpecificSourceSchemaVersion`
+  - `TestDataSet`
 - runtime CSV header normalization exact behavior:
   - BOM is removed from the first header cell
   - non-first headers are trimmed normally
@@ -207,10 +210,11 @@ Must cover:
 
 - valid request schema passes
 - request without `RequestFilter` fails schema validation
-- valid response schema passes
+- valid response schema passes against the root-level file in `internal/json`
 - empty `JsonSchemaName` fails response validation
 - path-traversal-style `JsonSchemaName` resolves by basename
 - unknown `JsonSchemaName` fails
+- legacy response schema filename without `_From_` canonicalizes to the current filename
 - validating invalid JSON payload fails
 - missing schema file fails
 - local schema metadata enrichment succeeds

@@ -15,7 +15,9 @@ This repository contains three related but different contract layers:
 3. `internal/filtersql`
    A typed request parser and SQL compiler library.
 
-There are also JSON schema files in `internal/json`, `P26_2`, and `testdata/pi26_2`. Those schemas are documentation and validation artifacts, but the runtime behavior comes from Go code.
+The only authoritative JSON schema files are the root-level files directly under `internal/json`.
+
+Files in `internal/json/old`, `P26_2`, `testdata/pi26_2`, and other documentation folders are not authoritative schema sources and must not be treated as the active contract.
 
 ## 2. Quick Start
 

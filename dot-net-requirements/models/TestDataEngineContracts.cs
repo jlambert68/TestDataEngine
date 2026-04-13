@@ -153,16 +153,33 @@ public sealed record DataSetSchemaMetadata
     public required string UpdatedDateTime { get; init; }
 }
 
+public sealed record SpecificDatasourceTestData
+{
+    public required string SpecificSourceSchemaVersion { get; init; }
+    public required IReadOnlyList<IReadOnlyDictionary<string, object?>> TestDataSet { get; init; }
+}
+
 public sealed record DataSetResponse
 {
+    public string? SchemaVersion { get; init; }
     public string? TestDataSourceName { get; init; }
     public string? TestDataSourceUuid { get; init; }
     public string? JsonSchemaName { get; init; }
     public JsonDocument? JsonSchema { get; init; }
     public string? UpdatedDateTime { get; init; }
-    public required string DataSourceName { get; init; }
-    public required string DataSourceUuid { get; init; }
-    public required IReadOnlyList<IReadOnlyDictionary<string, object?>> Data { get; init; }
+    public string? DataSourceName { get; init; }
+    public string? DataSourceUuid { get; init; }
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>>? Data { get; init; }
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>>? TestData { get; init; }
+}
+
+public sealed record MarshaledDataSetResponse
+{
+    public required string SchemaVersion { get; init; }
+    public required string TestDataSourceName { get; init; }
+    public required string TestDataSourceUuid { get; init; }
+    public required string JsonSchemaName { get; init; }
+    public required SpecificDatasourceTestData TestData { get; init; }
 }
 
 public sealed record AllowedFieldsLogEnvelope
@@ -174,7 +191,7 @@ public sealed record AllowedFieldsLogEnvelope
 public sealed record DataSetLogEnvelope
 {
     public required JsonElement InputFilter { get; init; }
-    public required DataSetResponse DataSetResponse { get; init; }
+    public required MarshaledDataSetResponse DataSetResponse { get; init; }
 }
 
 public sealed record ImportOptions
