@@ -28,3 +28,17 @@ func TestQueryPostgresDataSourceErrors(t *testing.T) {
 		t.Fatal("expected unsafe postgres schema metadata table error")
 	}
 }
+
+func TestQuoteQualifiedIdentifier(t *testing.T) {
+	t.Parallel()
+
+	if got := quoteQualifiedIdentifier("public.data_items"); got != `"public"."data_items"` {
+		t.Fatalf("unexpected quoted identifier: %q", got)
+	}
+	if got := quoteQualifiedIdentifier("FenixTestData.data_items"); got != `"FenixTestData"."data_items"` {
+		t.Fatalf("unexpected mixed-case quoted identifier: %q", got)
+	}
+	if got := quoteQualifiedIdentifier("data_items"); got != `"data_items"` {
+		t.Fatalf("unexpected single-part quoted identifier: %q", got)
+	}
+}

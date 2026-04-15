@@ -81,8 +81,8 @@ func loadPostgresDataSource(
 	}
 
 	query := fmt.Sprintf(
-		`SELECT JsonData::text FROM %s WHERE DataSourceUuid = $1 AND DataSourceName = $2`,
-		dataTable,
+		`SELECT "JsonData"::text FROM %s WHERE "DataSourceUuid" = $1 AND "DataSourceName" = $2`,
+		quoteQualifiedIdentifier(dataTable),
 	)
 	rows, err := db.QueryContext(context.Background(), query, req.DataSourceUUID, req.DataSourceName)
 	if err != nil {
@@ -156,12 +156,12 @@ func loadPostgresDataSetSchemaMetadata(
 	schemaTable string,
 ) (*DataSetSchemaMetadata, error) {
 	query := fmt.Sprintf(
-		`SELECT TestDataSourceName, TestDataSourceUuid, JsonSchemaName, JsonSchema::text, UpdatedDateTime::text
+		`SELECT "TestDataSourceName", "TestDataSourceUuid", "JsonSchemaName", "JsonSchema"::text, "UpdatedDateTime"::text
 FROM %s
-WHERE lower(TestDataSourceUuid) = lower($1) AND TestDataSourceName = $2
-ORDER BY UpdatedDateTime DESC
+WHERE lower("TestDataSourceUuid"::text) = lower($1) AND "TestDataSourceName" = $2
+ORDER BY "UpdatedDateTime" DESC
 LIMIT 1`,
-		schemaTable,
+		quoteQualifiedIdentifier(schemaTable),
 	)
 
 	var (
@@ -192,4 +192,13 @@ LIMIT 1`,
 	meta.JsonSchemaName = CanonicalResponseSchemaName(meta.JsonSchemaName)
 	meta.JsonSchema = json.RawMessage(jsonSchema)
 	return &meta, nil
+}
+
+func quoteQualifiedIdentifier(raw string) string {
+	parts := strings.Split(raw, ".")
+	quoted := make([]string, 0, len(parts))
+	for _, part := range parts {
+		quoted = append(quoted, `"`+part+`"`)
+	}
+	return strings.Join(quoted, ".")
 }
