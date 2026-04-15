@@ -160,6 +160,9 @@ create table main.data_items
 (
     DataSourceUuid      TEXT not null,
     DataSourceName      TEXT not null,
+    TestDataDomainUuid  TEXT not null,
+    TestDataDomainName  TEXT not null,
+    TestDataSourceTemplateName TEXT not null,
     DataUuid            TEXT not null,
     DataUpdateTimeStamp TEXT not null,
     JsonDataUuid        TEXT not null primary key,
@@ -185,8 +188,8 @@ create table main.testdataset_response_schemas
 
 	insert := `
 insert into main.data_items
-  (DataSourceUuid, DataSourceName, DataUuid, DataUpdateTimeStamp, JsonDataUuid, JsonData)
-values (?, ?, ?, ?, ?, ?)`
+  (DataSourceUuid, DataSourceName, TestDataDomainUuid, TestDataDomainName, TestDataSourceTemplateName, DataUuid, DataUpdateTimeStamp, JsonDataUuid, JsonData)
+values (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	rows := []struct {
 		dataUUID     string
@@ -215,6 +218,9 @@ values (?, ?, ?, ?, ?, ?)`
 			insert,
 			"110cc994-a913-4041-96fe-a96d7e0c97e8",
 			"SubCustody",
+			"7edf2269-a8d3-472c-aed6-8cdcc4a8b6ae",
+			"Sub Custody",
+			"SubCustodyMain",
 			row.dataUUID,
 			"2026-03-26T10:00:00Z",
 			row.jsonDataUUID,

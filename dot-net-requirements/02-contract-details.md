@@ -260,20 +260,23 @@ These are required compatibility details for the .NET rewrite.
 - The typed `filtersql` compiler has explicit options for placeholder style and identifier quoting
 - The runtime `filters` compiler always uses `?` placeholders and quoted identifiers
 
-## 2.6 SQLite Tables Required by the Runtime
+## 2.6 Database Tables Required by the Runtime
 
-### Main data table
+### SQLite main data table
 
 Required columns:
 
 - `DataSourceUuid`
 - `DataSourceName`
+- `TestDataDomainUuid`
+- `TestDataDomainName`
+- `TestDataSourceTemplateName`
 - `DataUuid`
 - `DataUpdateTimeStamp`
 - `JsonDataUuid`
 - `JsonData`
 
-### Response schema metadata table
+### SQLite response schema metadata table
 
 Required table name:
 
@@ -290,6 +293,38 @@ Required columns:
 Selection rule:
 
 - Use the newest matching row by `UpdatedDateTime DESC`
+
+### Postgres main data table
+
+Required default table name:
+
+- `public.data_items`
+
+Required columns:
+
+- `DataSourceUuid`
+- `DataSourceName`
+- `TestDataDomainUuid`
+- `TestDataDomainName`
+- `TestDataSourceTemplateName`
+- `DataUuid`
+- `DataUpdateTimeStamp`
+- `JsonDataUuid`
+- `JsonData`
+
+### Postgres response schema metadata table
+
+Required default table name:
+
+- `public.testdataset_response_schemas`
+
+Required columns:
+
+- `TestDataSourceName`
+- `TestDataSourceUuid`
+- `JsonSchemaName`
+- `JsonSchema`
+- `UpdatedDateTime`
 
 ## 2.7 Error Requirements
 

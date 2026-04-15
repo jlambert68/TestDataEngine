@@ -2,6 +2,9 @@ CREATE TABLE main.data_items
 (
     DataSourceUuid      TEXT NOT NULL,
     DataSourceName      TEXT NOT NULL,
+    TestDataDomainUuid  TEXT NOT NULL,
+    TestDataDomainName  TEXT NOT NULL,
+    TestDataSourceTemplateName TEXT NOT NULL,
     DataUuid            TEXT NOT NULL,
     DataUpdateTimeStamp TEXT NOT NULL,
     JsonDataUuid        TEXT NOT NULL PRIMARY KEY,

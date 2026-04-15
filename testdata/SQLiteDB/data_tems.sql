@@ -4,6 +4,9 @@ create table main.data_items
 (
     DataSourceUuid      TEXT not null, -- UUID of the source system.
     DataSourceName      TEXT not null, -- Human-readable name of the source system.
+    TestDataDomainUuid  TEXT not null, -- Logical domain UUID owning the datasource.
+    TestDataDomainName  TEXT not null, -- Logical domain name owning the datasource.
+    TestDataSourceTemplateName TEXT not null, -- Datasource template name.
     DataUuid            TEXT not null, -- UUID of the logical data entity in the source. The same UUID for all rows(json data) inserted at the same time.
     DataUpdateTimeStamp TEXT not null, -- Last update timestamp from the source.
     JsonDataUuid        TEXT not null  -- Unique UUID for this JSON payload row.

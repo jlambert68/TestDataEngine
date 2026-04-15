@@ -17,18 +17,28 @@ import (
 )
 
 type ImportOptions struct {
-	DBPath         string
-	CSVPath        string
-	DataSourceUUID string
-	DataSourceName string
-	TableName      string
-	Delimiter      rune
-	BatchSize      int
+	DBPath                     string
+	CSVPath                    string
+	DataSourceUUID             string
+	DataSourceName             string
+	TestDataDomainUUID         string
+	TestDataDomainName         string
+	TestDataSourceTemplateName string
+	TableName                  string
+	Delimiter                  rune
+	BatchSize                  int
 }
 
 type ImportResult struct {
 	RowsInserted int
 }
+
+const (
+	subCustodyDataSourceUUID     = "110cc994-a913-4041-96fe-a96d7e0c97e8"
+	subCustodyTestDataDomainUUID = "7edf2269-a8d3-472c-aed6-8cdcc4a8b6ae"
+	subCustodyTestDataDomainName = "Sub Custody"
+	subCustodySourceTemplateName = "SubCustodyMain"
+)
 
 // ImportRawCSV reads a raw CSV file and inserts each row as JsonData into SQLite.
 func ImportRawCSV(ctx context.Context, opts ImportOptions) (ImportResult, error) {
@@ -52,6 +62,11 @@ func ImportRawCSV(ctx context.Context, opts ImportOptions) (ImportResult, error)
 	}
 	if opts.BatchSize <= 0 {
 		opts.BatchSize = 500
+	}
+
+	domainUUID, domainName, sourceTemplateName, err := resolveImportDomainMetadata(opts)
+	if err != nil {
+		return ImportResult{}, err
 	}
 
 	f, err := os.Open(opts.CSVPath)
@@ -90,7 +105,7 @@ func ImportRawCSV(ctx context.Context, opts ImportOptions) (ImportResult, error)
 	defer tx.Rollback()
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s (DataSourceUuid, DataSourceName, DataUuid, DataUpdateTimeStamp, JsonDataUuid, JsonData) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO %s (DataSourceUuid, DataSourceName, TestDataDomainUuid, TestDataDomainName, TestDataSourceTemplateName, DataUuid, DataUpdateTimeStamp, JsonDataUuid, JsonData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		opts.TableName,
 	)
 	stmt, err := tx.PrepareContext(ctx, query)
@@ -123,6 +138,9 @@ func ImportRawCSV(ctx context.Context, opts ImportOptions) (ImportResult, error)
 			ctx,
 			opts.DataSourceUUID,
 			opts.DataSourceName,
+			domainUUID,
+			domainName,
+			sourceTemplateName,
 			dataUUID,
 			timestamp,
 			jsonDataUUID,
@@ -171,6 +189,36 @@ func buildPayload(headers, row []string) map[string]string {
 		payload[headers[i]] = strings.TrimSpace(row[i])
 	}
 	return payload
+}
+
+func resolveImportDomainMetadata(opts ImportOptions) (string, string, string, error) {
+	domainUUID := strings.TrimSpace(opts.TestDataDomainUUID)
+	domainName := strings.TrimSpace(opts.TestDataDomainName)
+	sourceTemplateName := strings.TrimSpace(opts.TestDataSourceTemplateName)
+
+	if strings.EqualFold(strings.TrimSpace(opts.DataSourceUUID), subCustodyDataSourceUUID) {
+		if domainUUID == "" {
+			domainUUID = subCustodyTestDataDomainUUID
+		}
+		if domainName == "" {
+			domainName = subCustodyTestDataDomainName
+		}
+		if sourceTemplateName == "" {
+			sourceTemplateName = subCustodySourceTemplateName
+		}
+	}
+
+	if domainUUID == "" {
+		return "", "", "", errors.New("test data domain uuid is required")
+	}
+	if domainName == "" {
+		return "", "", "", errors.New("test data domain name is required")
+	}
+	if sourceTemplateName == "" {
+		return "", "", "", errors.New("test data source template name is required")
+	}
+
+	return domainUUID, domainName, sourceTemplateName, nil
 }
 
 // newUUID generates a random RFC 4122 version 4 UUID string.

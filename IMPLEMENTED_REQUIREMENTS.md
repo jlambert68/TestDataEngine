@@ -41,6 +41,16 @@ Run the main program with SQLite and a deterministic random seed:
 make run-main-sqlite MAX_ITEMS=5 RANDOM_SEED_GUID=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
 ```
 
+Run the main program with Postgres:
+
+```bash
+go run ./cmd/testdataengine \
+  -source postgres \
+  -postgres-dsn 'postgres://user:pass@localhost:5432/dbname?sslmode=disable' \
+  -postgres-table public.data_items \
+  -postgres-schema-table public.testdataset_response_schemas
+```
+
 The request itself is currently embedded in `cmd/testdataengine/main.go`.
 
 ## 3. Main Concepts
@@ -99,6 +109,9 @@ The request is hard-coded in `cmd/testdataengine/main.go`, and the caller contro
 - `-csv`
 - `-sqlite-db`
 - `-sqlite-table`
+- `-postgres-dsn`
+- `-postgres-table`
+- `-postgres-schema-table`
 - `-max-items`
 - `-random-seed-guid`
 
@@ -437,10 +450,50 @@ Canonical table used by tests and importer:
 
 - `DataSourceUuid TEXT NOT NULL`
 - `DataSourceName TEXT NOT NULL`
+- `TestDataDomainUuid TEXT NOT NULL`
+- `TestDataDomainName TEXT NOT NULL`
+- `TestDataSourceTemplateName TEXT NOT NULL`
 - `DataUuid TEXT NOT NULL`
 - `DataUpdateTimeStamp TEXT NOT NULL`
 - `JsonDataUuid TEXT NOT NULL PRIMARY KEY`
 - `JsonData TEXT NOT NULL`
+
+## 9.3 Postgres source
+
+Postgres behavior:
+
+- validates the Postgres DSN
+- defaults empty data table name to `public.data_items`
+- defaults empty schema metadata table name to `public.testdataset_response_schemas`
+- validates table name safety
+- reads rows using:
+  - `DataSourceUuid`
+  - `DataSourceName`
+- reads `JsonData`
+- unmarshals `JsonData`
+- infers fields from all JSON payloads
+
+Expected Postgres table columns for runtime use:
+
+- `DataSourceUuid`
+- `DataSourceName`
+- `JsonData`
+
+Canonical Postgres table should mirror the SQLite `data_items` metadata columns:
+
+- `DataSourceUuid UUID NOT NULL`
+- `DataSourceName VARCHAR NOT NULL`
+- `TestDataDomainUuid UUID NOT NULL`
+- `TestDataDomainName VARCHAR NOT NULL`
+- `TestDataSourceTemplateName VARCHAR NOT NULL`
+- `DataUuid UUID NOT NULL`
+- `DataUpdateTimeStamp TIMESTAMPTZ NOT NULL`
+- `JsonDataUuid UUID NOT NULL PRIMARY KEY`
+- `JsonData JSONB NOT NULL`
+
+Canonical schema fixture:
+
+- `testdata/PostgresDB/schema.sql`
 
 Example `JsonData` payload stored in SQLite:
 

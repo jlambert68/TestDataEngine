@@ -57,17 +57,23 @@ func main() {
 	}
 
 	var (
-		sourceType  string
-		csvPath     string
-		sqliteDB    string
-		sqliteTable string
-		maxItems    int
-		randomGUID  string
+		sourceType          string
+		csvPath             string
+		sqliteDB            string
+		sqliteTable         string
+		postgresDSN         string
+		postgresTable       string
+		postgresSchemaTable string
+		maxItems            int
+		randomGUID          string
 	)
-	flag.StringVar(&sourceType, "source", "csv", "Data source type: csv or sqlite")
+	flag.StringVar(&sourceType, "source", "csv", "Data source type: csv, sqlite, or postgres")
 	flag.StringVar(&csvPath, "csv", "p26_2/FenixRawTestdata_646rows_211220_stripped.csv", "Path to CSV input file")
 	flag.StringVar(&sqliteDB, "sqlite-db", "testdata/SQLiteDB/identifier.sqlite", "Path to SQLite DB file")
 	flag.StringVar(&sqliteTable, "sqlite-table", "main.data_items", "SQLite table containing JsonData")
+	flag.StringVar(&postgresDSN, "postgres-dsn", "", "Postgres connection string")
+	flag.StringVar(&postgresTable, "postgres-table", "public.data_items", "Postgres table containing JsonData")
+	flag.StringVar(&postgresSchemaTable, "postgres-schema-table", "public.testdataset_response_schemas", "Postgres table containing response schema metadata")
 	flag.IntVar(&maxItems, "max-items", 2, "Maximum number of matched rows to return (0=all)")
 	flag.StringVar(&randomGUID, "random-seed-guid", "", "Optional GUID used as deterministic shuffle seed")
 	flag.Parse()
@@ -117,8 +123,31 @@ func main() {
 		}
 		logging.Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "Source=sqlite DB=%s Table=%s RandomSeedGuid=%s", sqliteDB, sqliteTable, randomGUID)
 
+	case "postgres":
+		compiled, allowedResp, dataResp, err = filters.QueryPostgresDataSourceWithSeed(
+			req,
+			postgresDSN,
+			postgresTable,
+			postgresSchemaTable,
+			maxItems,
+			randomGUID,
+		)
+		if err != nil {
+			logging.Fatalf("1a13d345-e313-4b23-9937-89a6f57e3740", "failed to query postgres datasource: %v", err)
+		}
+		if err := validateSQLiteResponseSchema(dataResp); err != nil {
+			logging.Fatalf("4e26bc0c-b190-4ee9-941a-060d9e6cd4a4", "postgres response schema validation failed: %v", err)
+		}
+		logging.Infof(
+			"5f795883-5799-48d3-ae27-8d491111d9c0",
+			"Source=postgres Table=%s SchemaTable=%s RandomSeedGuid=%s",
+			postgresTable,
+			postgresSchemaTable,
+			randomGUID,
+		)
+
 	default:
-		logging.Fatalf("a72f852f-bf0a-40de-bbe7-b54225095f20", "unsupported source type %q (expected csv or sqlite)", sourceType)
+		logging.Fatalf("a72f852f-bf0a-40de-bbe7-b54225095f20", "unsupported source type %q (expected csv, sqlite, or postgres)", sourceType)
 	}
 
 	// Log compiled SQL representation and response payloads for traceability.

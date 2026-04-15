@@ -118,6 +118,18 @@ Must cover:
 - raw JSON value to inference-string conversion
 - raw value coercion to inferred types
 
+## 3.4A Postgres Datasource Tests
+
+Must cover:
+
+- blank Postgres DSN fails
+- unsafe Postgres data table name fails
+- unsafe Postgres schema metadata table name fails
+- Postgres schema fixture contains the same canonical `data_items` metadata columns as SQLite:
+  - `TestDataDomainUuid`
+  - `TestDataDomainName`
+  - `TestDataSourceTemplateName`
+
 ## 3.5 Typed `filtersql` Tests
 
 Must cover:

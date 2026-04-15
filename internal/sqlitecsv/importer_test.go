@@ -32,6 +32,9 @@ create table main.data_items
 (
     DataSourceUuid      TEXT not null,
     DataSourceName      TEXT not null,
+    TestDataDomainUuid  TEXT not null,
+    TestDataDomainName  TEXT not null,
+    TestDataSourceTemplateName TEXT not null,
     DataUuid            TEXT not null,
     DataUpdateTimeStamp TEXT not null,
     JsonDataUuid        TEXT not null primary key,
@@ -65,21 +68,27 @@ create table main.data_items
 		t.Fatalf("expected 2 rows in db, got %d", count)
 	}
 
-	var dsUUID, dsName, valueA, valueB string
+	var dsUUID, dsName, domainUUID, domainName, templateName, valueA, valueB string
 	query := `
 select
   DataSourceUuid,
   DataSourceName,
+  TestDataDomainUuid,
+  TestDataDomainName,
+  TestDataSourceTemplateName,
   json_extract(JsonData, '$.ColA'),
   json_extract(JsonData, '$.ColB')
 from main.data_items
 order by json_extract(JsonData, '$.ColA')
 limit 1`
-	if err := db.QueryRow(query).Scan(&dsUUID, &dsName, &valueA, &valueB); err != nil {
+	if err := db.QueryRow(query).Scan(&dsUUID, &dsName, &domainUUID, &domainName, &templateName, &valueA, &valueB); err != nil {
 		t.Fatalf("query row payload: %v", err)
 	}
 	if dsUUID != "110cc994-a913-4041-96fe-a96d7e0c97e8" || dsName != "SubCustody" {
 		t.Fatalf("unexpected datasource metadata: %q %q", dsUUID, dsName)
+	}
+	if domainUUID != "7edf2269-a8d3-472c-aed6-8cdcc4a8b6ae" || domainName != "Sub Custody" || templateName != "SubCustodyMain" {
+		t.Fatalf("unexpected domain metadata: %q %q %q", domainUUID, domainName, templateName)
 	}
 	if valueA != "1" || valueB != "x" {
 		t.Fatalf("unexpected json payload values: ColA=%q ColB=%q", valueA, valueB)
@@ -100,6 +109,22 @@ func TestImportRawCSVValidationErrors(t *testing.T) {
 		CSVPath:        "x.csv",
 		DataSourceUUID: "u",
 		DataSourceName: "n",
+	})
+	if err == nil {
+		t.Fatal("expected validation error for missing test data metadata before file open")
+	}
+	if err.Error() != "test data domain uuid is required" {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+
+	_, err = ImportRawCSV(context.Background(), ImportOptions{
+		DBPath:                     "x.sqlite",
+		CSVPath:                    "x.csv",
+		DataSourceUUID:             "u",
+		DataSourceName:             "n",
+		TestDataDomainUUID:         "d",
+		TestDataDomainName:         "domain",
+		TestDataSourceTemplateName: "template",
 	})
 	if err == nil {
 		t.Fatal("expected open csv error for non-existing file")

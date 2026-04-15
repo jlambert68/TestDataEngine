@@ -7,7 +7,7 @@ The .NET solution must reproduce the current project as a test-data query engine
 - Accept a filter request with schema version `1.0`
 - Compile the filter into a SQL-like expression
 - Return allowed-field metadata
-- Read rows from either CSV or SQLite
+- Read rows from CSV, SQLite, or Postgres
 - Filter rows in memory using the request filter
 - Randomize result order, optionally with a deterministic GUID seed
 - Limit the number of returned rows
@@ -54,7 +54,26 @@ The .NET solution must reproduce the current project as a test-data query engine
 15. Validate the final dataset response against the schema named by `JsonSchemaName`.
 16. Log compiled SQL, args, allowed-fields response, and dataset response.
 
-### Flow C: Import raw CSV into SQLite
+### Flow C: Query Postgres data
+
+1. Read a `FilterRequest`.
+2. Validate the request JSON against the request JSON schema file.
+3. Validate the request envelope.
+4. Open the Postgres database using the configured DSN.
+5. Read dataset-response schema metadata from `public.testdataset_response_schemas` or the provided schema table.
+6. Read `JsonData` rows from the configured data table filtered by `DataSourceUuid` and `DataSourceName`.
+7. Deserialize each `JsonData` value to an object.
+8. Infer field types and supported operators from the discovered JSON fields and values.
+9. Compile the request filter for the inferred datasource.
+10. Build the allowed-fields response.
+11. Evaluate the request filter against each row in memory.
+12. Shuffle matching rows.
+13. Apply `maxItems` limit after shuffle.
+14. Attach schema metadata from the metadata table.
+15. Validate the final dataset response against the schema named by `JsonSchemaName`.
+16. Log compiled SQL, args, allowed-fields response, and dataset response.
+
+### Flow D: Import raw CSV into SQLite
 
 1. Validate import options.
 2. Open the CSV file.
@@ -240,11 +259,33 @@ The SQLite datasource implementation must:
 - Infer fields across all JSON keys found in all matching rows
 - Sort field names deterministically
 - Coerce raw JSON values to inferred field types
+- Remain compatible with canonical `data_items` rows that also include:
+  - `TestDataDomainUuid`
+  - `TestDataDomainName`
+  - `TestDataSourceTemplateName`
 
 Important table-name rule:
 
 - Safe table names may contain letters, digits, `_`, and `.`
 - Semicolons and other punctuation must be rejected
+
+## 1.8A Postgres Rules
+
+The Postgres datasource implementation must:
+
+- Require a non-empty DSN
+- Default blank data table name to `public.data_items`
+- Default blank schema metadata table name to `public.testdataset_response_schemas`
+- Reject unsafe table names
+- Query only rows where both `DataSourceUuid` and `DataSourceName` match the request
+- Deserialize `JsonData` from each matching row
+- Infer fields across all JSON keys found in all matching rows
+- Sort field names deterministically
+- Coerce raw JSON values to inferred field types
+- Remain compatible with the same canonical `data_items` column set as SQLite, including:
+  - `TestDataDomainUuid`
+  - `TestDataDomainName`
+  - `TestDataSourceTemplateName`
 
 ## 1.9 Result Randomization and Limiting
 
@@ -296,6 +337,14 @@ SQLite behavior:
 - The main program still requires metadata because response-schema validation needs `JsonSchemaName`
 - If the metadata row exists but `JsonSchema` is not valid JSON, the SQLite query must fail
 
+Postgres behavior:
+
+- Schema metadata is loaded from `public.testdataset_response_schemas` by default
+- The newest row by `UpdatedDateTime DESC` is used
+- If the metadata table does not exist, low-level query code stays backward compatible and returns no metadata
+- The main program still requires metadata because response-schema validation needs `JsonSchemaName`
+- If the metadata row exists but `JsonSchema` is not valid JSON, the Postgres query must fail
+
 ## 1.11 Schema Validation Rules
 
 The main program must validate:
@@ -337,10 +386,13 @@ Rules:
 
 The `.NET` executable equivalent of `cmd/testdataengine/main.go` must support:
 
-- `-source` with values `csv` or `sqlite`
+- `-source` with values `csv`, `sqlite`, or `postgres`
 - `-csv`
 - `-sqlite-db`
 - `-sqlite-table`
+- `-postgres-dsn`
+- `-postgres-table`
+- `-postgres-schema-table`
 - `-max-items`
 - `-random-seed-guid`
 
@@ -351,6 +403,8 @@ Default behavior:
 - If that default path does not exist, try `P26_2/FenixRawTestdata_646rows_211220_stripped.csv`
 - Default SQLite DB path is `testdata/SQLiteDB/identifier.sqlite`
 - Default SQLite table is `main.data_items`
+- Default Postgres data table is `public.data_items`
+- Default Postgres schema metadata table is `public.testdataset_response_schemas`
 - Default max items is `2`
 
 ## 1.14 Runtime Output Shape
