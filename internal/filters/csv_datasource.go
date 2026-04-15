@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -114,6 +115,9 @@ func queryDataRows(
 		filtered = append(filtered, row)
 	}
 
+	// Normalize row order before shuffle so deterministic seeds behave the same across storage backends.
+	sortRowsCanonical(filtered)
+
 	// Shuffle before limiting so repeated requests do not always return identical first rows.
 	if err := shuffleRowsWithGUID(filtered, randomSeedGUID); err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
@@ -184,6 +188,20 @@ func CanonicalResponseSchemaName(name string) string {
 		return SpecificDatasourceResponseSchemaName
 	}
 	return base
+}
+
+func sortRowsCanonical(rows []map[string]interface{}) {
+	sort.Slice(rows, func(i, j int) bool {
+		return canonicalRowKey(rows[i]) < canonicalRowKey(rows[j])
+	})
+}
+
+func canonicalRowKey(row map[string]interface{}) string {
+	payload, err := json.Marshal(row)
+	if err != nil {
+		return fmt.Sprintf("%v", row)
+	}
+	return string(payload)
 }
 
 func schemaVersionOrDefault(v string) string {

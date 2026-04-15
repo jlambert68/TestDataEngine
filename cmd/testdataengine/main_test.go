@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -227,5 +228,63 @@ func TestApplyLocalResponseSchemaMetadataErrorsAndBasename(t *testing.T) {
 	}
 	if enriched.JsonSchemaName != filters.SpecificDatasourceResponseSchemaName {
 		t.Fatalf("expected basename-only JsonSchemaName, got %q", enriched.JsonSchemaName)
+	}
+}
+
+func TestResolveSourceTypes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    []string
+		wantErr bool
+	}{
+		{
+			name:  "csv",
+			input: "csv",
+			want:  []string{"csv"},
+		},
+		{
+			name:  "sqlite whitespace normalized",
+			input: " sqlite ",
+			want:  []string{"sqlite"},
+		},
+		{
+			name:  "postgres uppercased",
+			input: "POSTGRES",
+			want:  []string{"postgres"},
+		},
+		{
+			name:  "all",
+			input: "all",
+			want:  []string{"csv", "sqlite", "postgres"},
+		},
+		{
+			name:    "invalid",
+			input:   "xml",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := resolveSourceTypes(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("unexpected sources: got %v want %v", got, tc.want)
+			}
+		})
 	}
 }

@@ -22,6 +22,13 @@ const (
 	specificResponseSchema = filters.SpecificDatasourceResponseSchemaName
 )
 
+type sourceResult struct {
+	Source      string
+	Compiled    filters.CompiledFilter
+	AllowedResp filters.AllowedFieldResponse
+	DataResp    filters.DataSetResponse
+}
+
 // main runs a sample filter request and prints both metadata and matching data rows.
 func main() {
 	// Embedded example request used by default when running the binary directly.
@@ -67,7 +74,7 @@ func main() {
 		maxItems            int
 		randomGUID          string
 	)
-	flag.StringVar(&sourceType, "source", "csv", "Data source type: csv, sqlite, or postgres")
+	flag.StringVar(&sourceType, "source", "csv", "Data source type: csv, sqlite, postgres, or all")
 	flag.StringVar(&csvPath, "csv", "p26_2/FenixRawTestdata_646rows_211220_stripped.csv", "Path to CSV input file")
 	flag.StringVar(&sqliteDB, "sqlite-db", "testdata/SQLiteDB/identifier.sqlite", "Path to SQLite DB file")
 	flag.StringVar(&sqliteTable, "sqlite-table", "main.data_items", "SQLite table containing JsonData")
@@ -87,44 +94,87 @@ func main() {
 		logging.Fatalf("9f8abf12-6d9c-4f47-a932-35e6ac4e0db6", "request schema validation failed: %v", err)
 	}
 
-	var (
-		compiled    filters.CompiledFilter
-		allowedResp filters.AllowedFieldResponse
-		dataResp    filters.DataSetResponse
-		err         error
-	)
+	sources, err := resolveSourceTypes(sourceType)
+	if err != nil {
+		logging.Fatalf("a72f852f-bf0a-40de-bbe7-b54225095f20", "%v", err)
+	}
 
-	switch strings.ToLower(strings.TrimSpace(sourceType)) {
+	for _, source := range sources {
+		result, err := querySource(req, source, csvPath, sqliteDB, sqliteTable, postgresDSN, postgresTable, postgresSchemaTable, maxItems, randomGUID)
+		if err != nil {
+			logging.Fatalf("eb34afc2-53bb-4bcb-bd0d-1a4918453442", "failed to query %s datasource: %v", source, err)
+		}
+		logSourceResult(req, result)
+	}
+}
+
+func resolveSourceTypes(sourceType string) ([]string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(sourceType))
+	switch normalized {
+	case "all":
+		return []string{"csv", "sqlite", "postgres"}, nil
+	case "csv", "sqlite", "postgres":
+		return []string{normalized}, nil
+	default:
+		return nil, fmt.Errorf("unsupported source type %q (expected csv, sqlite, postgres, or all)", sourceType)
+	}
+}
+
+func querySource(
+	req filters.FilterRequest,
+	source string,
+	csvPath string,
+	sqliteDB string,
+	sqliteTable string,
+	postgresDSN string,
+	postgresTable string,
+	postgresSchemaTable string,
+	maxItems int,
+	randomGUID string,
+) (sourceResult, error) {
+	switch source {
 	case "csv":
 		// Keep backward compatibility with both lowercase and uppercase data folders.
 		if _, statErr := os.Stat(csvPath); statErr != nil && csvPath == "p26_2/FenixRawTestdata_646rows_211220_stripped.csv" {
 			csvPath = "P26_2/FenixRawTestdata_646rows_211220_stripped.csv"
 		}
-		compiled, allowedResp, dataResp, err = filters.QueryCSVDataSourceWithSeed(req, csvPath, maxItems, randomGUID)
+		compiled, allowedResp, dataResp, err := filters.QueryCSVDataSourceWithSeed(req, csvPath, maxItems, randomGUID)
 		if err != nil {
-			logging.Fatalf("6f0f24b3-7e8b-425b-8de3-2b055116c430", "failed to query csv datasource: %v", err)
+			return sourceResult{}, err
 		}
 		dataResp, err = applyLocalResponseSchemaMetadata(req, dataResp, specificResponseSchema)
 		if err != nil {
-			logging.Fatalf("15043fdf-3bbf-4a1e-8c77-cf66f01ca057", "csv response schema metadata enrichment failed: %v", err)
+			return sourceResult{}, fmt.Errorf("response schema metadata enrichment failed: %w", err)
 		}
 		if err := validateCSVResponseSchema(dataResp); err != nil {
-			logging.Fatalf("6f93a9d0-53d8-4f25-a94e-8dad953ceb84", "csv response schema validation failed: %v", err)
+			return sourceResult{}, fmt.Errorf("response schema validation failed: %w", err)
 		}
 		logging.Infof("8428b438-123c-40d8-a7ca-ff5b4e87f832", "Source=csv CSV=%s RandomSeedGuid=%s", csvPath, randomGUID)
+		return sourceResult{
+			Source:      source,
+			Compiled:    compiled,
+			AllowedResp: allowedResp,
+			DataResp:    dataResp,
+		}, nil
 
 	case "sqlite":
-		compiled, allowedResp, dataResp, err = filters.QuerySQLiteDataSourceWithSeed(req, sqliteDB, sqliteTable, maxItems, randomGUID)
+		compiled, allowedResp, dataResp, err := filters.QuerySQLiteDataSourceWithSeed(req, sqliteDB, sqliteTable, maxItems, randomGUID)
 		if err != nil {
-			logging.Fatalf("c2fd3f4f-1119-47d8-bbe7-28f159f57db2", "failed to query sqlite datasource: %v", err)
+			return sourceResult{}, err
 		}
 		if err := validateSQLiteResponseSchema(dataResp); err != nil {
-			logging.Fatalf("4d3798c0-dd20-4de5-8f7f-6ad31bb3f2f3", "sqlite response schema validation failed: %v", err)
+			return sourceResult{}, fmt.Errorf("response schema validation failed: %w", err)
 		}
 		logging.Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "Source=sqlite DB=%s Table=%s RandomSeedGuid=%s", sqliteDB, sqliteTable, randomGUID)
+		return sourceResult{
+			Source:      source,
+			Compiled:    compiled,
+			AllowedResp: allowedResp,
+			DataResp:    dataResp,
+		}, nil
 
 	case "postgres":
-		compiled, allowedResp, dataResp, err = filters.QueryPostgresDataSourceWithSeed(
+		compiled, allowedResp, dataResp, err := filters.QueryPostgresDataSourceWithSeed(
 			req,
 			postgresDSN,
 			postgresTable,
@@ -133,10 +183,10 @@ func main() {
 			randomGUID,
 		)
 		if err != nil {
-			logging.Fatalf("1a13d345-e313-4b23-9937-89a6f57e3740", "failed to query postgres datasource: %v", err)
+			return sourceResult{}, err
 		}
 		if err := validateSQLiteResponseSchema(dataResp); err != nil {
-			logging.Fatalf("4e26bc0c-b190-4ee9-941a-060d9e6cd4a4", "postgres response schema validation failed: %v", err)
+			return sourceResult{}, fmt.Errorf("response schema validation failed: %w", err)
 		}
 		logging.Infof(
 			"5f795883-5799-48d3-ae27-8d491111d9c0",
@@ -145,21 +195,30 @@ func main() {
 			postgresSchemaTable,
 			randomGUID,
 		)
-
+		return sourceResult{
+			Source:      source,
+			Compiled:    compiled,
+			AllowedResp: allowedResp,
+			DataResp:    dataResp,
+		}, nil
 	default:
-		logging.Fatalf("a72f852f-bf0a-40de-bbe7-b54225095f20", "unsupported source type %q (expected csv, sqlite, or postgres)", sourceType)
+		return sourceResult{}, fmt.Errorf("unsupported source type %q", source)
 	}
+}
 
+func logSourceResult(req filters.FilterRequest, result sourceResult) {
 	// Log compiled SQL representation and response payloads for traceability.
-	logging.Infof("35579f2f-4de2-4cc2-bf0a-bf579f31cf64", "WHERE=%s", compiled.WhereSQL)
-	logging.Infof("37f52f2f-fb8f-47dd-bf14-17c3a194ddbc", "ARGS=%v", compiled.Args)
+	logging.Infof("35579f2f-4de2-4cc2-bf0a-bf579f31cf64", "Source=%s WHERE=%s", result.Source, result.Compiled.WhereSQL)
+	logging.Infof("37f52f2f-fb8f-47dd-bf14-17c3a194ddbc", "Source=%s ARGS=%v", result.Source, result.Compiled.Args)
 
 	allowedWithInputFilter := struct {
+		Source                string                       `json:"Source"`
 		InputFilter           json.RawMessage              `json:"InputFilter"`
 		AllowedFieldsResponse filters.AllowedFieldResponse `json:"AllowedFieldsResponse"`
 	}{
+		Source:                result.Source,
 		InputFilter:           req.RequestFilter,
-		AllowedFieldsResponse: allowedResp,
+		AllowedFieldsResponse: result.AllowedResp,
 	}
 	allowedPretty, err := json.MarshalIndent(allowedWithInputFilter, "", "  ")
 	if err != nil {
@@ -168,11 +227,13 @@ func main() {
 	logging.Infof("15f177af-c4dc-4e86-a4e5-4f20fdf001d3", "AllowedFieldsResponse=%s", string(allowedPretty))
 
 	dataWithInputFilter := struct {
+		Source          string                  `json:"Source"`
 		InputFilter     json.RawMessage         `json:"InputFilter"`
 		DataSetResponse filters.DataSetResponse `json:"DataSetResponse"`
 	}{
+		Source:          result.Source,
 		InputFilter:     req.RequestFilter,
-		DataSetResponse: dataResp,
+		DataSetResponse: result.DataResp,
 	}
 	dataPretty, err := json.MarshalIndent(dataWithInputFilter, "", "  ")
 	if err != nil {

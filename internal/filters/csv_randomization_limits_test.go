@@ -121,6 +121,53 @@ func TestShuffleRowsWithGUIDDeterministic(t *testing.T) {
 	}
 }
 
+func TestSortRowsCanonicalBeforeSeededSelection(t *testing.T) {
+	t.Parallel()
+
+	ds := DataSourceDefinition{
+		UUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
+		Fields: map[string]FieldDefinition{
+			"AccountCurrency":               {FieldType: "string", SupportedOperators: toSet("eq")},
+			"AccountEnvironment":            {FieldType: "string", SupportedOperators: toSet("eq")},
+			"ClientJuristictionCountryCode": {FieldType: "string", SupportedOperators: toSet("eq")},
+			"TestDataId":                    {FieldType: "integer", SupportedOperators: toSet("eq")},
+		},
+	}
+	req := FilterRequest{
+		SchemaVersion:  "1.0",
+		RequestUUID:    "6e6e17c4-6cc0-4ef0-a1cf-e96f0c5f8b8f",
+		DataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
+		DataSourceName: "SubCustody",
+		RequestFilter: json.RawMessage(`{
+			"and": [
+				{"field":"AccountCurrency","op":"eq","value":"SEK"},
+				{"field":"AccountEnvironment","op":"eq","value":"SysTest"},
+				{"field":"ClientJuristictionCountryCode","op":"eq","value":"SE"}
+			]
+		}`),
+	}
+	rowsA := []map[string]interface{}{
+		{"TestDataId": int64(3), "AccountCurrency": "SEK", "AccountEnvironment": "SysTest", "ClientJuristictionCountryCode": "SE"},
+		{"TestDataId": int64(1), "AccountCurrency": "SEK", "AccountEnvironment": "SysTest", "ClientJuristictionCountryCode": "SE"},
+		{"TestDataId": int64(2), "AccountCurrency": "SEK", "AccountEnvironment": "SysTest", "ClientJuristictionCountryCode": "SE"},
+	}
+	rowsB := []map[string]interface{}{
+		{"TestDataId": int64(1), "AccountCurrency": "SEK", "AccountEnvironment": "SysTest", "ClientJuristictionCountryCode": "SE"},
+		{"TestDataId": int64(2), "AccountCurrency": "SEK", "AccountEnvironment": "SysTest", "ClientJuristictionCountryCode": "SE"},
+		{"TestDataId": int64(3), "AccountCurrency": "SEK", "AccountEnvironment": "SysTest", "ClientJuristictionCountryCode": "SE"},
+	}
+	seedGUID := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+
+	_, _, respA, errA := queryDataRows(req, ds, rowsA, "testA", 1, seedGUID, nil)
+	_, _, respB, errB := queryDataRows(req, ds, rowsB, "testB", 1, seedGUID, nil)
+	if errA != nil || errB != nil {
+		t.Fatalf("unexpected queryDataRows errors: %v / %v", errA, errB)
+	}
+	if !reflect.DeepEqual(respA.Data, respB.Data) {
+		t.Fatalf("expected same seeded selection after canonical ordering; got A=%#v B=%#v", respA.Data, respB.Data)
+	}
+}
+
 // TestQueryCSVDataSourceWithSeed verifies deterministic row selection for fixed seed GUID.
 func TestQueryCSVDataSourceWithSeed(t *testing.T) {
 	t.Parallel()
