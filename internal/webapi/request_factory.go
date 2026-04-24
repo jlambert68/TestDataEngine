@@ -10,6 +10,11 @@ import (
 const specificDatasourceResponseSchemaPath = "internal/json/TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json"
 
 func BuildMetadataRequest(cfg DataSourceConfig) (filters.FilterRequest, error) {
+	schemaVersion, err := filters.RequestSchemaVersion()
+	if err != nil {
+		return filters.FilterRequest{}, fmt.Errorf("load request schema version: %w", err)
+	}
+
 	catalog, err := filters.LoadSchemaFieldCatalog(specificDatasourceResponseSchemaPath)
 	if err != nil {
 		return filters.FilterRequest{}, fmt.Errorf("load schema catalog: %w", err)
@@ -29,7 +34,7 @@ func BuildMetadataRequest(cfg DataSourceConfig) (filters.FilterRequest, error) {
 	}
 
 	return filters.FilterRequest{
-		SchemaVersion:  "1.0",
+		SchemaVersion:  schemaVersion,
 		RequestUUID:    "11111111-1111-4111-8111-111111111111",
 		DataSourceUUID: cfg.DataSourceUUID,
 		DataSourceName: cfg.DataSourceName,

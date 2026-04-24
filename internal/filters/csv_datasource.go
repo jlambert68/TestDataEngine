@@ -369,8 +369,8 @@ func compileRequestForDataSource(req FilterRequest, ds DataSourceDefinition) (Co
 
 // allowedFieldsForDataSource builds the response payload with sorted field metadata.
 func allowedFieldsForDataSource(req FilterRequest, ds DataSourceDefinition) (AllowedFieldResponse, error) {
-	if req.SchemaVersion != "1.0" {
-		return AllowedFieldResponse{}, fmt.Errorf("unsupported SchemaVersion: %q", req.SchemaVersion)
+	if err := validateRequestSchemaVersion(req.SchemaVersion); err != nil {
+		return AllowedFieldResponse{}, err
 	}
 	if !isUUID(req.RequestUUID) {
 		return AllowedFieldResponse{}, fmt.Errorf("invalid RequestUuid: %q", req.RequestUUID)
@@ -756,8 +756,8 @@ func compareOrdered(fieldType string, rowValue, filterValue interface{}, okFn fu
 
 // validateRequestEnvelope validates request metadata without requiring catalog lookup.
 func validateRequestEnvelope(req FilterRequest) error {
-	if req.SchemaVersion != "1.0" {
-		return fmt.Errorf("unsupported SchemaVersion: %q", req.SchemaVersion)
+	if err := validateRequestSchemaVersion(req.SchemaVersion); err != nil {
+		return err
 	}
 	if !isUUID(req.RequestUUID) {
 		return fmt.Errorf("invalid RequestUuid: %q", req.RequestUUID)

@@ -112,8 +112,8 @@ func FacetPostgresDataSource(req FilterRequest, dsn string, dataTable string, sc
 }
 
 func validateMetadataRequest(req FilterRequest) error {
-	if req.SchemaVersion != "1.0" {
-		return fmt.Errorf("unsupported SchemaVersion: %q", req.SchemaVersion)
+	if err := validateRequestSchemaVersion(req.SchemaVersion); err != nil {
+		return err
 	}
 	if !isUUID(req.RequestUUID) {
 		return fmt.Errorf("invalid RequestUuid: %q", req.RequestUUID)

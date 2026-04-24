@@ -3,12 +3,19 @@ package filtersql
 import (
 	"encoding/json"
 	"fmt"
+
+	"TestDataEngine/internal/filters"
 )
 
 // ExampleCompiler_Compile demonstrates JSON request parsing and SQL compilation output.
 func ExampleCompiler_Compile() {
+	schemaVersion, err := filters.RequestSchemaVersion()
+	if err != nil {
+		panic(err)
+	}
+
 	input := []byte(`{
-	  "SchemaVersion": "1.0",
+	  "SchemaVersion": "` + schemaVersion + `",
 	  "RequestUuid": "11111111-1111-4111-8111-111111111111",
 	  "DataSourceUuid": "22222222-2222-4222-8222-222222222222",
 	  "DataSourceName": "people",

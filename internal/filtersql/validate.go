@@ -4,14 +4,20 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"TestDataEngine/internal/filters"
 )
 
 var uuidRE = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 
 // ValidateRequest validates the top-level request envelope and nested filter tree.
 func ValidateRequest(r Request) error {
-	if r.SchemaVersion != SchemaVersion {
-		return fmt.Errorf("SchemaVersion must be %q", SchemaVersion)
+	expected, err := filters.RequestSchemaVersion()
+	if err != nil {
+		return fmt.Errorf("load request schema version: %w", err)
+	}
+	if r.SchemaVersion != expected {
+		return fmt.Errorf("SchemaVersion must be %q", expected)
 	}
 	if !uuidRE.MatchString(r.RequestUUID) {
 		return errors.New("RequestUuid must be a valid UUID")

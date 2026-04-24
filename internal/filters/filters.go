@@ -129,8 +129,8 @@ func toSet(values ...string) map[string]struct{} {
 
 // ValidateRequest performs envelope and datasource consistency checks.
 func ValidateRequest(req FilterRequest) error {
-	if req.SchemaVersion != "1.0" {
-		return fmt.Errorf("unsupported SchemaVersion: %q", req.SchemaVersion)
+	if err := validateRequestSchemaVersion(req.SchemaVersion); err != nil {
+		return err
 	}
 	if !isUUID(req.RequestUUID) {
 		return fmt.Errorf("invalid RequestUuid: %q", req.RequestUUID)
@@ -157,8 +157,8 @@ func ValidateRequest(req FilterRequest) error {
 
 // GetAllowedFieldsResponse returns sorted field metadata for a known datasource.
 func GetAllowedFieldsResponse(schemaVersion, requestUUID, dataSourceUUID, dataSourceName string) (AllowedFieldResponse, error) {
-	if schemaVersion != "1.0" {
-		return AllowedFieldResponse{}, fmt.Errorf("unsupported SchemaVersion: %q", schemaVersion)
+	if err := validateRequestSchemaVersion(schemaVersion); err != nil {
+		return AllowedFieldResponse{}, err
 	}
 	if !isUUID(requestUUID) {
 		return AllowedFieldResponse{}, fmt.Errorf("invalid RequestUuid: %q", requestUUID)

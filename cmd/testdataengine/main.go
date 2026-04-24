@@ -31,9 +31,14 @@ type sourceResult struct {
 
 // main runs a sample filter request and prints both metadata and matching data rows.
 func main() {
+	schemaVersion, err := filters.RequestSchemaVersion()
+	if err != nil {
+		logging.Fatalf("2d00eaaf-c4f4-431b-826a-0e5741c1175d", "failed to load request schema version: %v", err)
+	}
+
 	// Embedded example request used by default when running the binary directly.
-	filterReqJSON := []byte(`{
-	  "SchemaVersion": "1.0",
+	filterReqJSON := []byte(fmt.Sprintf(`{
+	  "SchemaVersion": %q,
 	  "RequestUuid": "6e6e17c4-6cc0-4ef0-a1cf-e96f0c5f8b8f",
 	  "DataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
 	  "DataSourceName": "SubCustody",
@@ -56,7 +61,7 @@ func main() {
 	      }
 	    ]
 	  }
-	}`)
+	}`, schemaVersion))
 
 	var req filters.FilterRequest
 	if err := json.Unmarshal(filterReqJSON, &req); err != nil {

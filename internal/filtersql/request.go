@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-const SchemaVersion = "1.0"
-
 // Request is the incoming filter contract used by the SQL compiler package.
 type Request struct {
 	SchemaVersion  string     `json:"SchemaVersion"`

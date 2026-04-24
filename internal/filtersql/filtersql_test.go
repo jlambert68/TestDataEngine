@@ -5,11 +5,22 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"TestDataEngine/internal/filters"
 )
 
 type badExpression struct{}
 
 func (badExpression) isExpression() {}
+
+func testSchemaVersion(t *testing.T) string {
+	t.Helper()
+	version, err := filters.RequestSchemaVersion()
+	if err != nil {
+		t.Fatalf("RequestSchemaVersion unexpected error: %v", err)
+	}
+	return version
+}
 
 // TestOperatorValid verifies operator enum validation behavior.
 func TestOperatorValid(t *testing.T) {
@@ -96,8 +107,9 @@ func TestParseExpressionAndHasOnlyKey(t *testing.T) {
 
 // TestRequestUnmarshalJSON validates custom request unmarshalling with typed RequestFilter.
 func TestRequestUnmarshalJSON(t *testing.T) {
+	schemaVersion := testSchemaVersion(t)
 	raw := []byte(`{
-	  "SchemaVersion":"1.0",
+	  "SchemaVersion":"` + schemaVersion + `",
 	  "RequestUuid":"11111111-1111-4111-8111-111111111111",
 	  "DataSourceUuid":"22222222-2222-4222-8222-222222222222",
 	  "DataSourceName":"people",
@@ -109,7 +121,7 @@ func TestRequestUnmarshalJSON(t *testing.T) {
 		t.Fatalf("json.Unmarshal(Request) unexpected error: %v", err)
 	}
 	logUnitCall(t, "22222222-2222-4222-8222-222222222222", "json.Unmarshal(Request)", string(raw), "Request with Comparison filter", req)
-	if req.SchemaVersion != "1.0" || req.DataSourceName != "people" {
+	if req.SchemaVersion != schemaVersion || req.DataSourceName != "people" {
 		t.Fatalf("unexpected request values: %#v", req)
 	}
 	if _, ok := req.RequestFilter.(Comparison); !ok {
@@ -126,8 +138,9 @@ func TestRequestUnmarshalJSON(t *testing.T) {
 
 // TestValidateRequestAndExpression validates request envelope and recursive expression checks.
 func TestValidateRequestAndExpression(t *testing.T) {
+	schemaVersion := testSchemaVersion(t)
 	valid := Request{
-		SchemaVersion:  SchemaVersion,
+		SchemaVersion:  schemaVersion,
 		RequestUUID:    "11111111-1111-4111-8111-111111111111",
 		DataSourceUUID: "22222222-2222-4222-8222-222222222222",
 		DataSourceName: "people",
@@ -140,10 +153,10 @@ func TestValidateRequestAndExpression(t *testing.T) {
 
 	cases := []Request{
 		{SchemaVersion: "2.0", RequestUUID: valid.RequestUUID, DataSourceUUID: valid.DataSourceUUID, DataSourceName: valid.DataSourceName, RequestFilter: valid.RequestFilter},
-		{SchemaVersion: SchemaVersion, RequestUUID: "bad", DataSourceUUID: valid.DataSourceUUID, DataSourceName: valid.DataSourceName, RequestFilter: valid.RequestFilter},
-		{SchemaVersion: SchemaVersion, RequestUUID: valid.RequestUUID, DataSourceUUID: "bad", DataSourceName: valid.DataSourceName, RequestFilter: valid.RequestFilter},
-		{SchemaVersion: SchemaVersion, RequestUUID: valid.RequestUUID, DataSourceUUID: valid.DataSourceUUID, DataSourceName: "", RequestFilter: valid.RequestFilter},
-		{SchemaVersion: SchemaVersion, RequestUUID: valid.RequestUUID, DataSourceUUID: valid.DataSourceUUID, DataSourceName: valid.DataSourceName, RequestFilter: nil},
+		{SchemaVersion: schemaVersion, RequestUUID: "bad", DataSourceUUID: valid.DataSourceUUID, DataSourceName: valid.DataSourceName, RequestFilter: valid.RequestFilter},
+		{SchemaVersion: schemaVersion, RequestUUID: valid.RequestUUID, DataSourceUUID: "bad", DataSourceName: valid.DataSourceName, RequestFilter: valid.RequestFilter},
+		{SchemaVersion: schemaVersion, RequestUUID: valid.RequestUUID, DataSourceUUID: valid.DataSourceUUID, DataSourceName: "", RequestFilter: valid.RequestFilter},
+		{SchemaVersion: schemaVersion, RequestUUID: valid.RequestUUID, DataSourceUUID: valid.DataSourceUUID, DataSourceName: valid.DataSourceName, RequestFilter: nil},
 	}
 	for i, r := range cases {
 		err := ValidateRequest(r)
@@ -240,7 +253,7 @@ func TestValidateComparisonAndScalarHelpers(t *testing.T) {
 func TestCompilerCompileAndInternals(t *testing.T) {
 	compiler := Compiler{Placeholder: Dollar, QuoteIdent: true}
 	req := Request{
-		SchemaVersion:  SchemaVersion,
+		SchemaVersion:  testSchemaVersion(t),
 		RequestUUID:    "11111111-1111-4111-8111-111111111111",
 		DataSourceUUID: "22222222-2222-4222-8222-222222222222",
 		DataSourceName: "people",
