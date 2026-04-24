@@ -2,18 +2,39 @@ package webapi
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"TestDataEngine/internal/filters"
 )
 
-func BuildMetadataRequest(cfg DataSourceConfig) filters.FilterRequest {
+const specificDatasourceResponseSchemaPath = "internal/json/TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json"
+
+func BuildMetadataRequest(cfg DataSourceConfig) (filters.FilterRequest, error) {
+	catalog, err := filters.LoadSchemaFieldCatalog(specificDatasourceResponseSchemaPath)
+	if err != nil {
+		return filters.FilterRequest{}, fmt.Errorf("load schema catalog: %w", err)
+	}
+	if len(catalog.Order) == 0 {
+		return filters.FilterRequest{}, fmt.Errorf("schema catalog did not define any fields")
+	}
+
+	probeField := catalog.Order[0]
+	requestFilter, err := json.Marshal(map[string]any{
+		"field": probeField,
+		"op":    "exists",
+		"value": true,
+	})
+	if err != nil {
+		return filters.FilterRequest{}, fmt.Errorf("marshal metadata filter: %w", err)
+	}
+
 	return filters.FilterRequest{
 		SchemaVersion:  "1.0",
 		RequestUUID:    "11111111-1111-4111-8111-111111111111",
 		DataSourceUUID: cfg.DataSourceUUID,
 		DataSourceName: cfg.DataSourceName,
-		RequestFilter:  json.RawMessage(`{"field":"TestDataId","op":"exists","value":true}`),
-	}
+		RequestFilter:  requestFilter,
+	}, nil
 }
 
 func sourceTypeFromString(raw string) SourceType {

@@ -29,6 +29,43 @@ func TestQueryPostgresDataSourceErrors(t *testing.T) {
 	}
 }
 
+func TestLoadPostgresDataSourceFromSchemaUsesCanonicalFields(t *testing.T) {
+	t.Parallel()
+
+	rawRows := []map[string]interface{}{
+		{
+			"AccountCurrency":               "SEK",
+			"ClientJuristictionCountryCode": "SE",
+		},
+		{
+			"AccountCurrency":               "NOK",
+			"ClientJuristictionCountryCode": "NO",
+		},
+	}
+
+	ds, typedRows, err := loadPostgresDataSourceFromSchema("110cc994-a913-4041-96fe-a96d7e0c97e8", nil, rawRows)
+	if err != nil {
+		t.Fatalf("loadPostgresDataSourceFromSchema unexpected error: %v", err)
+	}
+
+	if _, ok := ds.Fields["ClientJurisdictionCountryCode"]; !ok {
+		t.Fatal("expected canonical ClientJurisdictionCountryCode field in schema-driven postgres datasource")
+	}
+	if _, ok := ds.Fields["ClientJuristictionCountryCode"]; ok {
+		t.Fatal("unexpected raw legacy field in schema-driven postgres datasource")
+	}
+
+	if len(typedRows) != 2 {
+		t.Fatalf("expected 2 typed rows, got %d", len(typedRows))
+	}
+	if got := typedRows[0]["ClientJurisdictionCountryCode"]; got != "SE" {
+		t.Fatalf("expected canonical country code in first row, got %#v", got)
+	}
+	if _, ok := typedRows[0]["ClientJuristictionCountryCode"]; ok {
+		t.Fatal("unexpected raw legacy field in typed postgres row")
+	}
+}
+
 func TestQuoteQualifiedIdentifier(t *testing.T) {
 	t.Parallel()
 

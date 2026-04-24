@@ -56,7 +56,7 @@ func QuerySQLiteDataSourceWithSeed(
 	return queryDataRows(req, ds, rows, "sqlite", maxItems, randomSeedGUID, schemaMeta)
 }
 
-// loadSQLiteDataSource fetches JsonData rows, infers fields, and converts values to typed rows.
+// loadSQLiteDataSource fetches JsonData rows and converts them to typed rows.
 func loadSQLiteDataSource(
 	req FilterRequest,
 	dbPath string,
@@ -103,6 +103,54 @@ func loadSQLiteDataSource(
 		return DataSourceDefinition{}, nil, nil, fmt.Errorf("no data rows found for datasource %q (%s)", req.DataSourceName, req.DataSourceUUID)
 	}
 
+	ds, typedRows, err := loadSQLiteDataSourceFromSchema(req.DataSourceUUID, schemaMeta, rawRows)
+	if err == nil {
+		return ds, typedRows, schemaMeta, nil
+	}
+
+	// Fall back to the legacy inference path when schema-driven loading is unavailable.
+	return loadSQLiteDataSourceByInference(req.DataSourceUUID, rawRows, schemaMeta)
+}
+
+func loadSQLiteDataSourceFromSchema(
+	dataSourceUUID string,
+	schemaMeta *DataSetSchemaMetadata,
+	rawRows []map[string]interface{},
+) (DataSourceDefinition, []map[string]interface{}, error) {
+	catalog, err := schemaCatalogForDataSource(schemaMeta)
+	if err != nil {
+		return DataSourceDefinition{}, nil, err
+	}
+
+	ds := schemaDataSourceDefinition(catalog, dataSourceUUID)
+	fields := ds.Fields
+	normalizedRows := normalizeRowsToCanonical(rawRows, catalog)
+	typedRows := make([]map[string]interface{}, 0, len(normalizedRows))
+
+	for idx, rawRow := range normalizedRows {
+		row := make(map[string]interface{}, len(catalog.Order))
+		for _, field := range catalog.Order {
+			fieldDef, ok := fields[field]
+			if !ok {
+				continue
+			}
+			val, err := coerceRawValue(rawRow[field], fieldDef.FieldType)
+			if err != nil {
+				return DataSourceDefinition{}, nil, fmt.Errorf("sqlite row %d field %q: %w", idx+1, field, err)
+			}
+			row[field] = val
+		}
+		typedRows = append(typedRows, row)
+	}
+
+	return ds, typedRows, nil
+}
+
+func loadSQLiteDataSourceByInference(
+	dataSourceUUID string,
+	rawRows []map[string]interface{},
+	schemaMeta *DataSetSchemaMetadata,
+) (DataSourceDefinition, []map[string]interface{}, *DataSetSchemaMetadata, error) {
 	// Build inferred field definitions from all discovered JSON keys.
 	fieldOrder := collectFieldOrder(rawRows)
 	columnValues := make(map[string][]string, len(fieldOrder))
@@ -138,7 +186,7 @@ func loadSQLiteDataSource(
 	}
 
 	return DataSourceDefinition{
-		UUID:   req.DataSourceUUID,
+		UUID:   dataSourceUUID,
 		Fields: fields,
 	}, typedRows, schemaMeta, nil
 }

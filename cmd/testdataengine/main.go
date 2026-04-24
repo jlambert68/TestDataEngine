@@ -50,7 +50,7 @@ func main() {
 	        "value": "SysTest"
 	      },
 	      {
-	        "field": "ClientJuristictionCountryCode",
+	        "field": "ClientJurisdictionCountryCode",
 	        "op": "eq",
 	        "value": "SE"
 	      }

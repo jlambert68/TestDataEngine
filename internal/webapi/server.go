@@ -61,7 +61,11 @@ func (s *Server) handleGetFields(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req := BuildMetadataRequest(cfg)
+	req, err := BuildMetadataRequest(cfg)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to build metadata request", err.Error())
+		return
+	}
 	allowed, err := s.deps.QueryService.Describe(source, cfg, req)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "failed to describe datasource", err.Error())
@@ -108,7 +112,13 @@ func (s *Server) handleGetFacets(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	values, truncated, err := s.deps.FacetService.Values(source, cfg, BuildMetadataRequest(cfg), field, limit, r.URL.Query().Get("q"))
+	req, err := BuildMetadataRequest(cfg)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to build metadata request", err.Error())
+		return
+	}
+
+	values, truncated, err := s.deps.FacetService.Values(source, cfg, req, field, limit, r.URL.Query().Get("q"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "failed to load facets", err.Error())
 		return

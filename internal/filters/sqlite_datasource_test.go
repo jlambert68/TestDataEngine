@@ -84,6 +84,49 @@ func TestQuerySQLiteDataSource(t *testing.T) {
 	}
 }
 
+func TestQuerySQLiteDataSourceUsesCanonicalSchemaFields(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "source.sqlite")
+	createSQLiteTestData(t, dbPath)
+
+	req := FilterRequest{
+		SchemaVersion:  "1.0",
+		RequestUUID:    "7e7e17c4-6cc0-4ef0-a1cf-e96f0c5f8b8f",
+		DataSourceUUID: "110cc994-a913-4041-96fe-a96d7e0c97e8",
+		DataSourceName: "SubCustody",
+		RequestFilter:  []byte(`{"field":"ClientJurisdictionCountryCode","op":"eq","value":"SE"}`),
+	}
+
+	_, allowed, dataResp, err := QuerySQLiteDataSource(req, dbPath, "main.data_items", 0)
+	if err != nil {
+		t.Fatalf("QuerySQLiteDataSource unexpected error: %v", err)
+	}
+
+	foundCanonicalField := false
+	for _, field := range allowed.AllowedFields {
+		if field.FieldName == "ClientJurisdictionCountryCode" {
+			foundCanonicalField = true
+			break
+		}
+	}
+	if !foundCanonicalField {
+		t.Fatal("expected canonical schema field ClientJurisdictionCountryCode to be allowed")
+	}
+
+	if len(dataResp.Data) != 2 {
+		t.Fatalf("expected 2 matching rows for canonical country code filter, got %d", len(dataResp.Data))
+	}
+	for idx, row := range dataResp.Data {
+		if got := row["ClientJurisdictionCountryCode"]; got != "SE" {
+			t.Fatalf("row %d expected canonical ClientJurisdictionCountryCode=SE, got %#v", idx+1, got)
+		}
+		if _, hasRaw := row["ClientJuristictionCountryCode"]; hasRaw {
+			t.Fatalf("row %d unexpectedly retained raw legacy field name", idx+1)
+		}
+	}
+}
+
 // TestQuerySQLiteDataSourceErrors validates guard rails for invalid SQLite inputs.
 func TestQuerySQLiteDataSourceErrors(t *testing.T) {
 	t.Parallel()
@@ -199,17 +242,17 @@ values (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		{
 			dataUUID:     "11111111-1111-4111-8111-111111111111",
 			jsonDataUUID: "21111111-1111-4111-8111-111111111111",
-			jsonData:     `{"AccountCurrency":"SEK","Amount":"100","Flag":"true"}`,
+			jsonData:     `{"AccountCurrency":"SEK","Amount":"100","Flag":"true","ClientJuristictionCountryCode":"SE"}`,
 		},
 		{
 			dataUUID:     "11111111-1111-4111-8111-111111111112",
 			jsonDataUUID: "21111111-1111-4111-8111-111111111112",
-			jsonData:     `{"AccountCurrency":"SEK","Amount":"200","Flag":"false"}`,
+			jsonData:     `{"AccountCurrency":"SEK","Amount":"200","Flag":"false","ClientJuristictionCountryCode":"SE"}`,
 		},
 		{
 			dataUUID:     "11111111-1111-4111-8111-111111111113",
 			jsonDataUUID: "21111111-1111-4111-8111-111111111113",
-			jsonData:     `{"AccountCurrency":"NOK","Amount":"300","Flag":"true"}`,
+			jsonData:     `{"AccountCurrency":"NOK","Amount":"300","Flag":"true","ClientJuristictionCountryCode":"NO"}`,
 		},
 	}
 	for _, row := range rows {

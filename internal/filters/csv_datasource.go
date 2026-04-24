@@ -216,39 +216,49 @@ func normalizeSpecificDatasourceRows(rows []map[string]interface{}) []map[string
 		return []map[string]interface{}{}
 	}
 
+	catalog, err := loadSpecificDatasourceSchemaCatalog()
+	if err != nil {
+		out := make([]map[string]interface{}, 0, len(rows))
+		for _, row := range rows {
+			cloned := make(map[string]interface{}, len(row))
+			for key, value := range row {
+				cloned[key] = value
+			}
+			out = append(out, cloned)
+		}
+		return out
+	}
+
 	out := make([]map[string]interface{}, 0, len(rows))
 	for _, row := range rows {
 		normalized := make(map[string]interface{}, len(row))
 		for key, value := range row {
-			switch key {
-			case "ClientJuristictionCountryCode":
-				normalized["ClientJurisdictionCountryCode"] = value
-			case "ContraCurrency", "InterimCurrency", "PrincipalOrIncome", "SecProgram":
-				normalized[key] = normalizeNullableStringValue(value)
-			case "Random":
-				normalized[key] = normalizeRandomValue(value)
-			default:
-				normalized[key] = value
+			canonicalName := CanonicalFieldName(key, catalog)
+			field, ok := catalog.Fields[canonicalName]
+			if !ok {
+				normalized[canonicalName] = value
+				continue
 			}
+			normalized[canonicalName] = normalizeSchemaFieldValue(value, field)
 		}
 		out = append(out, normalized)
 	}
 	return out
 }
 
-func normalizeNullableStringValue(v interface{}) interface{} {
-	s, ok := v.(string)
-	if !ok {
-		return v
-	}
-	trimmed := strings.TrimSpace(s)
-	if trimmed == "" || strings.EqualFold(trimmed, "NULL") {
+func normalizeSchemaFieldValue(v interface{}, field SchemaField) interface{} {
+	if v == nil {
 		return nil
 	}
-	return trimmed
+	switch field.FieldType {
+	case "string", "date", "datetime":
+		return normalizeSchemaStringValue(v, field.Nullable)
+	default:
+		return v
+	}
 }
 
-func normalizeRandomValue(v interface{}) interface{} {
+func normalizeSchemaStringValue(v interface{}, nullable bool) interface{} {
 	if v == nil {
 		return nil
 	}
@@ -256,7 +266,7 @@ func normalizeRandomValue(v interface{}) interface{} {
 	switch t := v.(type) {
 	case string:
 		trimmed := strings.TrimSpace(t)
-		if trimmed == "" || strings.EqualFold(trimmed, "NULL") {
+		if nullable && (trimmed == "" || strings.EqualFold(trimmed, "NULL")) {
 			return nil
 		}
 		return trimmed
@@ -284,8 +294,17 @@ func normalizeRandomValue(v interface{}) interface{} {
 		return strconv.FormatUint(uint64(t), 10)
 	case uint64:
 		return strconv.FormatUint(t, 10)
+	case bool:
+		if t {
+			return "true"
+		}
+		return "false"
 	default:
-		return fmt.Sprintf("%v", v)
+		s := strings.TrimSpace(fmt.Sprintf("%v", v))
+		if nullable && (s == "" || strings.EqualFold(s, "NULL")) {
+			return nil
+		}
+		return s
 	}
 }
 
@@ -384,7 +403,7 @@ func allowedFieldsForDataSource(req FilterRequest, ds DataSourceDefinition) (All
 	}, nil
 }
 
-// loadCSVDataSource infers field types/operators and parses all CSV rows into typed values.
+// loadCSVDataSource parses CSV rows using schema metadata when available and falls back to inference.
 func loadCSVDataSource(dataSourceUUID, csvPath string) (DataSourceDefinition, []map[string]interface{}, error) {
 	f, err := os.Open(csvPath)
 	if err != nil {
@@ -409,8 +428,76 @@ func loadCSVDataSource(dataSourceUUID, csvPath string) (DataSourceDefinition, []
 		return DataSourceDefinition{}, nil, errors.New("csv has no headers")
 	}
 
+	ds, rows, err := loadCSVDataSourceFromSchema(dataSourceUUID, headers, records[1:])
+	if err == nil {
+		return ds, rows, nil
+	}
+
+	// Fall back to the legacy inference path when schema-driven loading is unavailable.
+	return loadCSVDataSourceByInference(dataSourceUUID, headers, records[1:])
+}
+
+func loadCSVDataSourceFromSchema(
+	dataSourceUUID string,
+	headers []string,
+	dataRecords [][]string,
+) (DataSourceDefinition, []map[string]interface{}, error) {
+	catalog, err := loadSpecificDatasourceSchemaCatalog()
+	if err != nil {
+		return DataSourceDefinition{}, nil, err
+	}
+
+	ds := schemaDataSourceDefinition(catalog, dataSourceUUID)
+	fields := ds.Fields
+
+	headerIndex := make(map[string]int, len(headers))
+	for idx, header := range headers {
+		headerIndex[CanonicalFieldName(header, catalog)] = idx
+	}
+	matchedHeaders := 0
+	for _, field := range catalog.Order {
+		if _, ok := headerIndex[field]; ok {
+			matchedHeaders++
+		}
+	}
+	requiredMatches := minInt(2, len(headers))
+	if matchedHeaders < requiredMatches {
+		return DataSourceDefinition{}, nil, fmt.Errorf("csv headers do not match schema catalog")
+	}
+
+	rows := make([]map[string]interface{}, 0, len(dataRecords))
+	for rowIdx, rec := range dataRecords {
+		rec = normalizeRecord(rec, len(headers))
+		row := make(map[string]interface{}, len(catalog.Order))
+		for _, field := range catalog.Order {
+			fieldDef, ok := fields[field]
+			if !ok {
+				continue
+			}
+			colIdx, ok := headerIndex[field]
+			if !ok {
+				row[field] = nil
+				continue
+			}
+			value, err := parseCSVValue(rec[colIdx], fieldDef.FieldType)
+			if err != nil {
+				return DataSourceDefinition{}, nil, fmt.Errorf("row %d column %q: %w", rowIdx+2, field, err)
+			}
+			row[field] = value
+		}
+		rows = append(rows, row)
+	}
+
+	return ds, rows, nil
+}
+
+func loadCSVDataSourceByInference(
+	dataSourceUUID string,
+	headers []string,
+	dataRecords [][]string,
+) (DataSourceDefinition, []map[string]interface{}, error) {
 	columnValues := make([][]string, len(headers))
-	for _, rec := range records[1:] {
+	for _, rec := range dataRecords {
 		rec = normalizeRecord(rec, len(headers))
 		for i := range headers {
 			columnValues[i] = append(columnValues[i], rec[i])
@@ -428,8 +515,8 @@ func loadCSVDataSource(dataSourceUUID, csvPath string) (DataSourceDefinition, []
 		}
 	}
 
-	rows := make([]map[string]interface{}, 0, len(records)-1)
-	for rowIdx, rec := range records[1:] {
+	rows := make([]map[string]interface{}, 0, len(dataRecords))
+	for rowIdx, rec := range dataRecords {
 		rec = normalizeRecord(rec, len(headers))
 		row := make(map[string]interface{}, len(headers))
 		for colIdx, header := range headers {

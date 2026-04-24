@@ -110,6 +110,54 @@ func loadPostgresDataSource(
 		return DataSourceDefinition{}, nil, nil, fmt.Errorf("no data rows found for datasource %q (%s)", req.DataSourceName, req.DataSourceUUID)
 	}
 
+	ds, typedRows, err := loadPostgresDataSourceFromSchema(req.DataSourceUUID, schemaMeta, rawRows)
+	if err == nil {
+		return ds, typedRows, schemaMeta, nil
+	}
+
+	// Fall back to the legacy inference path when schema-driven loading is unavailable.
+	return loadPostgresDataSourceByInference(req.DataSourceUUID, rawRows, schemaMeta)
+}
+
+func loadPostgresDataSourceFromSchema(
+	dataSourceUUID string,
+	schemaMeta *DataSetSchemaMetadata,
+	rawRows []map[string]interface{},
+) (DataSourceDefinition, []map[string]interface{}, error) {
+	catalog, err := schemaCatalogForDataSource(schemaMeta)
+	if err != nil {
+		return DataSourceDefinition{}, nil, err
+	}
+
+	ds := schemaDataSourceDefinition(catalog, dataSourceUUID)
+	fields := ds.Fields
+	normalizedRows := normalizeRowsToCanonical(rawRows, catalog)
+	typedRows := make([]map[string]interface{}, 0, len(normalizedRows))
+
+	for idx, rawRow := range normalizedRows {
+		row := make(map[string]interface{}, len(catalog.Order))
+		for _, field := range catalog.Order {
+			fieldDef, ok := fields[field]
+			if !ok {
+				continue
+			}
+			val, err := coerceRawValue(rawRow[field], fieldDef.FieldType)
+			if err != nil {
+				return DataSourceDefinition{}, nil, fmt.Errorf("postgres row %d field %q: %w", idx+1, field, err)
+			}
+			row[field] = val
+		}
+		typedRows = append(typedRows, row)
+	}
+
+	return ds, typedRows, nil
+}
+
+func loadPostgresDataSourceByInference(
+	dataSourceUUID string,
+	rawRows []map[string]interface{},
+	schemaMeta *DataSetSchemaMetadata,
+) (DataSourceDefinition, []map[string]interface{}, *DataSetSchemaMetadata, error) {
 	fieldOrder := collectFieldOrder(rawRows)
 	columnValues := make(map[string][]string, len(fieldOrder))
 	for _, row := range rawRows {
@@ -144,7 +192,7 @@ func loadPostgresDataSource(
 	}
 
 	return DataSourceDefinition{
-		UUID:   req.DataSourceUUID,
+		UUID:   dataSourceUUID,
 		Fields: fields,
 	}, typedRows, schemaMeta, nil
 }

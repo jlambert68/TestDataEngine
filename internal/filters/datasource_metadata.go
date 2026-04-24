@@ -1,6 +1,8 @@
 package filters
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -30,6 +32,9 @@ func DescribeSQLiteDataSource(req FilterRequest, dbPath string, tableName string
 	if err := validateMetadataRequest(req); err != nil {
 		return AllowedFieldResponse{}, err
 	}
+	if schemaResp, err := describeDataSourceFromSQLiteSchema(req, dbPath); err == nil {
+		return schemaResp, nil
+	}
 	if strings.TrimSpace(tableName) == "" {
 		tableName = "main.data_items"
 	}
@@ -44,6 +49,9 @@ func DescribeSQLiteDataSource(req FilterRequest, dbPath string, tableName string
 func DescribePostgresDataSource(req FilterRequest, dsn string, dataTable string, schemaTable string) (AllowedFieldResponse, error) {
 	if err := validateMetadataRequest(req); err != nil {
 		return AllowedFieldResponse{}, err
+	}
+	if schemaResp, err := describeDataSourceFromPostgresSchema(req, dsn, schemaTable); err == nil {
+		return schemaResp, nil
 	}
 	if strings.TrimSpace(dataTable) == "" {
 		dataTable = "public.data_items"
@@ -182,4 +190,51 @@ func facetLabel(v interface{}) string {
 		return "(blank)"
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+func describeDataSourceFromSQLiteSchema(req FilterRequest, dbPath string) (AllowedFieldResponse, error) {
+	if strings.TrimSpace(dbPath) == "" {
+		return AllowedFieldResponse{}, fmt.Errorf("db path is required")
+	}
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return AllowedFieldResponse{}, fmt.Errorf("open sqlite db: %w", err)
+	}
+	defer db.Close()
+
+	schemaMeta, err := loadDataSetSchemaMetadata(context.Background(), db, req)
+	if err != nil {
+		return AllowedFieldResponse{}, err
+	}
+	return allowedFieldsFromSchema(req, schemaMeta)
+}
+
+func describeDataSourceFromPostgresSchema(req FilterRequest, dsn string, schemaTable string) (AllowedFieldResponse, error) {
+	if strings.TrimSpace(dsn) == "" {
+		return AllowedFieldResponse{}, fmt.Errorf("postgres dsn is required")
+	}
+	if strings.TrimSpace(schemaTable) == "" {
+		schemaTable = postgresResponseSchemaTable
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return AllowedFieldResponse{}, fmt.Errorf("open postgres db: %w", err)
+	}
+	defer db.Close()
+
+	schemaMeta, err := loadPostgresDataSetSchemaMetadata(context.Background(), db, req, schemaTable)
+	if err != nil {
+		return AllowedFieldResponse{}, err
+	}
+	return allowedFieldsFromSchema(req, schemaMeta)
+}
+
+func allowedFieldsFromSchema(req FilterRequest, schemaMeta *DataSetSchemaMetadata) (AllowedFieldResponse, error) {
+	catalog, err := schemaCatalogForDataSource(schemaMeta)
+	if err != nil {
+		return AllowedFieldResponse{}, err
+	}
+
+	ds := schemaDataSourceDefinition(catalog, req.DataSourceUUID)
+	return allowedFieldsForDataSource(req, ds)
 }
