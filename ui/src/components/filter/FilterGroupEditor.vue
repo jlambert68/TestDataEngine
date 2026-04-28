@@ -57,6 +57,10 @@ function removeAt(index: number) {
             <input :checked="group.combinator === 'or'" type="radio" :name="`group-mode-${group.id}`" @change="group.combinator = 'or'" />
             Match any (OR)
           </label>
+          <label class="chip">
+            <input :checked="group.negated" type="checkbox" @change="group.negated = !group.negated" />
+            Negate (NOT)
+          </label>
         </div>
       </div>
 
@@ -64,7 +68,13 @@ function removeAt(index: number) {
     </header>
 
     <p class="muted">
-      {{ group.combinator === 'and' ? 'All items in this group must match.' : 'Any item in this group may match.' }}
+      {{
+        group.negated
+          ? `NOT ${group.combinator === 'and' ? '(all items in this group must match)' : '(any item in this group may match)'}`
+          : group.combinator === 'and'
+            ? 'All items in this group must match.'
+            : 'Any item in this group may match.'
+      }}
     </p>
 
     <div v-if="group.items.length" class="stack">

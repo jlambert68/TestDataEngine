@@ -132,6 +132,7 @@ export interface FilterRuleState {
 export interface FilterGroupState {
   id: string
   combinator: GroupCombinator
+  negated: boolean
   items: FilterNodeState[]
 }
 

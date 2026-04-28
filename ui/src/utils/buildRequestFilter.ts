@@ -12,10 +12,14 @@ function buildGroupExpression(group: FilterGroupState, isRoot = false): FilterEx
   if (!clauses.length) {
     return null
   }
+  let expression: FilterExpression
   if (isRoot && clauses.length === 1) {
-    return clauses[0]
+    expression = clauses[0]
+  } else {
+    expression = group.combinator === 'or' ? { or: clauses } : { and: clauses }
   }
-  return group.combinator === 'or' ? { or: clauses } : { and: clauses }
+
+  return group.negated ? { not: expression } : expression
 }
 
 function buildRuleExpression(rule: FilterRuleState): FilterExpression | null {

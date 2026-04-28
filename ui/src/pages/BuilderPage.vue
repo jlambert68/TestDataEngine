@@ -82,6 +82,7 @@ function createGroup(combinator: 'and' | 'or'): FilterGroupState {
   return {
     id: crypto.randomUUID(),
     combinator,
+    negated: false,
     items: [],
   }
 }
@@ -123,12 +124,31 @@ function restoreBuilderState(datasource: string, source: SourceType) {
     state.maxItems = typeof parsed.maxItems === 'number' ? Math.min(100, Math.max(1, parsed.maxItems)) : 25
     state.randomSeedGuid = typeof parsed.randomSeedGuid === 'string' ? parsed.randomSeedGuid : ''
     state.rootGroup = parsed.rootGroup && typeof parsed.rootGroup === 'object'
-      ? parsed.rootGroup as FilterGroupState
+      ? normalizeGroupState(parsed.rootGroup as FilterGroupState)
       : createGroup('and')
   } catch {
     state.maxItems = 25
     state.randomSeedGuid = ''
     state.rootGroup = createGroup('and')
+  }
+}
+
+function normalizeGroupState(group: FilterGroupState): FilterGroupState {
+  return {
+    id: group.id || crypto.randomUUID(),
+    combinator: group.combinator === 'or' ? 'or' : 'and',
+    negated: group.negated === true,
+    items: Array.isArray(group.items)
+      ? group.items.map(item => item.kind === 'group'
+        ? {
+            kind: 'group',
+            group: normalizeGroupState(item.group),
+          }
+        : {
+            kind: 'rule',
+            rule: item.rule,
+          })
+      : [],
   }
 }
 </script>
@@ -141,7 +161,7 @@ function restoreBuilderState(datasource: string, source: SourceType) {
         <div class="chip">Source: {{ state.source }}</div>
       </div>
       <p class="muted">
-        The logic is explicit now: each group can be <code>Match all</code> (`AND`) or <code>Match any</code> (`OR`).
+        The logic is explicit now: each group can be <code>Match all</code> (`AND`) or <code>Match any</code> (`OR`), and each group can also be negated with <code>NOT</code>.
         Each rule can be <code>Include</code> or <code>Exclude</code>, and you can add nested groups for parentheses-style logic.
       </p>
       <div class="cluster">
