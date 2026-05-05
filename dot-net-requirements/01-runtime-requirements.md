@@ -15,6 +15,8 @@ The .NET solution must reproduce the current project as a test-data query engine
 - Validate request and response payloads against JSON schema files
 - Log every runtime event with a hard-coded UUID search key
 - Import raw CSV rows into SQLite as JSON payload rows
+- Serve the same HTTP API contract consumed by `ui/`
+- Serve `ui/dist` static assets with SPA fallback routing
 
 ## 1.2 Main Flows
 
@@ -25,15 +27,17 @@ The .NET solution must reproduce the current project as a test-data query engine
 3. Validate the request envelope.
 4. Load the CSV file using `;` as delimiter.
 5. Normalize headers and rows.
-6. Infer field types and supported operators from CSV content.
-7. Compile the request filter for the inferred datasource.
-8. Build the allowed-fields response.
-9. Evaluate the request filter against each row in memory.
-10. Shuffle matching rows.
-11. Apply `maxItems` limit after shuffle.
-12. Enrich the dataset response with local JSON schema metadata from file.
-13. Validate the final dataset response against the response schema file.
-14. Log compiled SQL, args, allowed-fields response, and dataset response.
+6. Build field definitions from schema first (`internal/json/TestDataSet_Response_For_Specific_Datasource_From_TestDataEngine.json-schema.json`) and fall back to legacy inference when schema-driven loading is unavailable.
+7. Canonicalize row field names to schema field names when aliases or misspellings are close matches.
+8. Compile the request filter for the resolved datasource definition.
+9. Build the allowed-fields response.
+10. Evaluate the request filter against each row in memory.
+11. Sort matching rows canonically before shuffle.
+12. Shuffle matching rows.
+13. Apply `maxItems` limit after shuffle.
+14. Enrich the dataset response with local JSON schema metadata from file.
+15. Validate the final dataset response against the response schema file.
+16. Log compiled SQL, args, allowed-fields response, and dataset response.
 
 ### Flow B: Query SQLite data
 
@@ -44,15 +48,17 @@ The .NET solution must reproduce the current project as a test-data query engine
 5. Read dataset-response schema metadata from `main.testdataset_response_schemas`.
 6. Read `JsonData` rows from the configured data table filtered by `DataSourceUuid` and `DataSourceName`.
 7. Deserialize each `JsonData` value to an object.
-8. Infer field types and supported operators from the discovered JSON fields and values.
-9. Compile the request filter for the inferred datasource.
-10. Build the allowed-fields response.
-11. Evaluate the request filter against each row in memory.
-12. Shuffle matching rows.
-13. Apply `maxItems` limit after shuffle.
-14. Attach schema metadata from the metadata table.
-15. Validate the final dataset response against the schema named by `JsonSchemaName`.
-16. Log compiled SQL, args, allowed-fields response, and dataset response.
+8. Build field definitions from schema metadata JSON first (`JsonSchema` from metadata table) and fall back to local authoritative schema file, then legacy inference.
+9. Canonicalize row field names to schema field names when aliases or misspellings are close matches.
+10. Compile the request filter for the resolved datasource definition.
+11. Build the allowed-fields response.
+12. Evaluate the request filter against each row in memory.
+13. Sort matching rows canonically before shuffle.
+14. Shuffle matching rows.
+15. Apply `maxItems` limit after shuffle.
+16. Attach schema metadata from the metadata table.
+17. Validate the final dataset response against the schema named by `JsonSchemaName`.
+18. Log compiled SQL, args, allowed-fields response, and dataset response.
 
 ### Flow C: Query Postgres data
 
@@ -63,15 +69,17 @@ The .NET solution must reproduce the current project as a test-data query engine
 5. Read dataset-response schema metadata from `public.testdataset_response_schemas` or the provided schema table.
 6. Read `JsonData` rows from the configured data table filtered by `DataSourceUuid` and `DataSourceName`.
 7. Deserialize each `JsonData` value to an object.
-8. Infer field types and supported operators from the discovered JSON fields and values.
-9. Compile the request filter for the inferred datasource.
-10. Build the allowed-fields response.
-11. Evaluate the request filter against each row in memory.
-12. Shuffle matching rows.
-13. Apply `maxItems` limit after shuffle.
-14. Attach schema metadata from the metadata table.
-15. Validate the final dataset response against the schema named by `JsonSchemaName`.
-16. Log compiled SQL, args, allowed-fields response, and dataset response.
+8. Build field definitions from schema metadata JSON first (`JsonSchema` from metadata table) and fall back to local authoritative schema file, then legacy inference.
+9. Canonicalize row field names to schema field names when aliases or misspellings are close matches.
+10. Compile the request filter for the resolved datasource definition.
+11. Build the allowed-fields response.
+12. Evaluate the request filter against each row in memory.
+13. Sort matching rows canonically before shuffle.
+14. Shuffle matching rows.
+15. Apply `maxItems` limit after shuffle.
+16. Attach schema metadata from the metadata table.
+17. Validate the final dataset response against the schema named by `JsonSchemaName`.
+18. Log compiled SQL, args, allowed-fields response, and dataset response.
 
 ### Flow D: Import raw CSV into SQLite
 
@@ -83,6 +91,35 @@ The .NET solution must reproduce the current project as a test-data query engine
 6. Insert rows into SQLite table `main.data_items` or the provided table name.
 7. Commit the transaction.
 
+Current compatibility details:
+
+- If `DataSourceUuid` is `110cc994-a913-4041-96fe-a96d7e0c97e8` and domain metadata is omitted, default:
+  - `TestDataDomainUuid` to `7edf2269-a8d3-472c-aed6-8cdcc4a8b6ae`
+  - `TestDataDomainName` to `Sub Custody`
+  - `TestDataSourceTemplateName` to `SubCustodyMain`
+- Values inserted into `JsonData` are strings trimmed with `TrimSpace`.
+- The importer currently interpolates the provided table name into the insert statement after applying only blank-default handling. It does not apply the same safe-table-name validation used by the SQLite query path.
+
+### Flow E: Serve UI-compatible web API
+
+1. Start an HTTP server, default bind address `:8080`, override by `HTTP_ADDR`.
+2. Expose API endpoints:
+   - `GET /api/v1/datasources`
+   - `GET /api/v1/datasources/{id}/fields?source=...`
+   - `GET /api/v1/datasources/{id}/facets?source=...&field=...&limit=...&q=...`
+   - `POST /api/v1/query/preview`
+   - `GET /api/v1/healthz`
+3. Return JSON errors in the shape `{ "error": "...", "details": "..." }`.
+4. Decode JSON request bodies with unknown-field rejection for preview requests.
+5. For non-API paths, serve files from `ui/dist` and fall back to `ui/dist/index.html`.
+
+The UI-facing web API and the runtime filter contract intentionally use different JSON naming conventions:
+
+- UI/web API wrapper DTOs use lower camel case, for example `dataSourceUuid`, `supportedSources`, `compiledWhereSql`, and `dataSet`.
+- Runtime filter DTOs embedded inside preview requests keep the current Pascal-case schema contract, for example `SchemaVersion`, `RequestUuid`, `DataSourceUuid`, and `RequestFilter`.
+- Source values on the web API wire are lowercase strings: `csv`, `sqlite`, and `postgres`.
+- The C# implementation must enforce these names explicitly with serializer attributes, dedicated serializer options, or custom converters. It must not rely on default .NET enum or property-name serialization.
+
 ## 1.3 Request Envelope Rules
 
 These rules apply to the runtime `filters` path:
@@ -92,6 +129,12 @@ These rules apply to the runtime `filters` path:
 - `DataSourceUuid` must match the runtime UUID regex
 - `DataSourceName` must be non-empty
 - `RequestFilter` must be present and non-empty
+
+Metadata-only request rule:
+
+- The describe/facet paths use metadata requests that validate `SchemaVersion`, `RequestUuid`, `DataSourceUuid`, and `DataSourceName`.
+- Metadata validation does not require `RequestFilter`.
+- The web metadata request factory still supplies a probe filter so downstream code can reuse the same request model.
 
 Runtime UUID rule:
 
@@ -217,6 +260,8 @@ The CSV datasource implementation must:
 - Remove UTF-8 BOM from the first header cell after the first trim step
 - Pad short rows with empty strings
 - Treat empty string and case-insensitive `NULL` as null
+- Prefer schema-driven field definitions from the authoritative response schema and fall back to inference when schema loading or matching is not possible
+- Canonicalize CSV header names to schema field names when aliases/misspellings are close matches
 
 Important current-behavior detail:
 
@@ -256,9 +301,11 @@ The SQLite datasource implementation must:
 - Reject unsafe table names
 - Query only rows where both `DataSourceUuid` and `DataSourceName` match the request
 - Deserialize `JsonData` from each matching row
+- Prefer schema-driven field definitions from metadata-table `JsonSchema` and fall back to local authoritative schema, then to inference when schema-driven loading is unavailable
 - Infer fields across all JSON keys found in all matching rows
 - Sort field names deterministically
 - Coerce raw JSON values to inferred field types
+- Canonicalize JSON field names to schema field names when aliases/misspellings are close matches
 - Remain compatible with canonical `data_items` rows that also include:
   - `TestDataDomainUuid`
   - `TestDataDomainName`
@@ -279,24 +326,38 @@ The Postgres datasource implementation must:
 - Reject unsafe table names
 - Query only rows where both `DataSourceUuid` and `DataSourceName` match the request
 - Deserialize `JsonData` from each matching row
+- Prefer schema-driven field definitions from metadata-table `JsonSchema` and fall back to local authoritative schema, then to inference when schema-driven loading is unavailable
 - Infer fields across all JSON keys found in all matching rows
 - Sort field names deterministically
 - Coerce raw JSON values to inferred field types
+- Canonicalize JSON field names to schema field names when aliases/misspellings are close matches
 - Remain compatible with the same canonical `data_items` column set as SQLite, including:
   - `TestDataDomainUuid`
   - `TestDataDomainName`
   - `TestDataSourceTemplateName`
 
+Postgres identifier and metadata compatibility:
+
+- Qualified table identifiers are quoted by splitting on `.` and wrapping every part in double quotes, for example `public.data_items` becomes `"public"."data_items"`.
+- If response-schema metadata lookup fails with an error containing `does not exist`, `undefined table`, or `relation`, treat it as missing metadata and continue at the low-level datasource layer.
+
 ## 1.9 Result Randomization and Limiting
 
-These rules apply to both CSV and SQLite flows:
+These rules apply to CSV, SQLite, and Postgres flows:
 
 - If fewer than two rows match, no shuffle work is required
 - If no random seed GUID is supplied, use non-deterministic randomness
 - If a random seed GUID is supplied, validate it and derive a deterministic seed from it
+- Sort matching rows canonically before shuffle so seeded selection remains stable across backends
 - Shuffle before applying `maxItems`
 - `maxItems == 0` means unlimited
 - `maxItems < 0` must behave as unlimited
+
+Seed derivation detail:
+
+- Strip hyphens from the GUID, lowercase it, hex-decode it, and read the first 8 bytes as a big-endian signed 64-bit seed.
+- If exact cross-language row order is required, the .NET implementation must reproduce Go's `math/rand` source and `Shuffle` behavior, not only use any deterministic .NET RNG.
+- If tests only require repeatability inside the .NET implementation, they may assert deterministic same-seed behavior without byte-for-byte Go order.
 
 ## 1.10 Response Metadata Rules
 
@@ -305,7 +366,7 @@ The runtime keeps two response layers:
 - Internal response state:
   - `DataSourceName`
   - `DataSourceUuid`
-- `Data`
+  - `Data`
 - Response-schema metadata loaded or attached before validation:
   - `TestDataSourceName`
   - `TestDataSourceUuid`
@@ -344,6 +405,13 @@ Postgres behavior:
 - If the metadata table does not exist, low-level query code stays backward compatible and returns no metadata
 - The main program still requires metadata because response-schema validation needs `JsonSchemaName`
 - If the metadata row exists but `JsonSchema` is not valid JSON, the Postgres query must fail
+
+Row normalization behavior before final JSON marshal:
+
+- Canonicalize row keys to schema field names where applicable
+- For schema fields typed as `string`/`date`/`datetime`, normalize values to strings
+- For nullable string-like schema fields, normalize empty or `NULL` (case-insensitive) to JSON `null`
+- Numeric values normalized into string schema fields are emitted with `,` as decimal separator
 
 ## 1.11 Schema Validation Rules
 
@@ -386,7 +454,7 @@ Rules:
 
 The `.NET` executable equivalent of `cmd/testdataengine/main.go` must support:
 
-- `-source` with values `csv`, `sqlite`, or `postgres`
+- `-source` with values `csv`, `sqlite`, `postgres`, or `all`
 - `-csv`
 - `-sqlite-db`
 - `-sqlite-table`
@@ -420,6 +488,7 @@ Allowed-fields output shape:
 
 ```json
 {
+  "Source": "csv|sqlite|postgres",
   "InputFilter": { "...": "..." },
   "AllowedFieldsResponse": { "...": "..." }
 }
@@ -429,6 +498,7 @@ Dataset output shape:
 
 ```json
 {
+  "Source": "csv|sqlite|postgres",
   "InputFilter": { "...": "..." },
   "DataSetResponse": { "...": "..." }
 }
@@ -438,3 +508,131 @@ The log message payload keys are:
 
 - `AllowedFieldsResponse=...`
 - `DataSetResponse=...`
+
+## 1.15 Web API Contract for UI
+
+The .NET rewrite must expose an API contract compatible with the existing Vue UI under `ui/`.
+
+Routing and hosting requirements:
+
+- API prefix is `/api/v1`
+- `GET /api/v1/healthz` returns `{ "status": "ok" }`
+- Non-API requests are served from `ui/dist`
+- Unknown client-side routes return `ui/dist/index.html` (SPA fallback)
+- Unknown paths under `/api/` return a plain HTTP `404`, not the JSON error envelope.
+- If `ui/dist/index.html` is missing, non-API fallback returns HTTP `503` with the JSON error envelope.
+
+Static catalog requirements:
+
+- The built-in catalog must include exactly the current UI datasource unless the product intentionally adds more:
+  - `id`: `subcustody`
+  - `label`: `SubCustody`
+  - `dataSourceName`: `SubCustody`
+  - `dataSourceUuid`: `110cc994-a913-4041-96fe-a96d7e0c97e8`
+  - `supportedSources`: `csv`, `sqlite`
+  - `defaultSource`: `sqlite`
+  - hidden CSV path: `testdata/pi26_2/FenixRawTestdata_646rows_211220_stripped.csv`
+  - hidden SQLite DB path: `testdata/SQLiteDB/identifier.sqlite`
+  - hidden SQLite table: `main.data_items`
+  - hidden Postgres data table: `public.data_items`
+  - hidden Postgres schema table: `public.testdataset_response_schemas`
+- Hidden catalog fields are required by query, describe, and facet services, but must not be emitted in the datasource-list response.
+
+Source parsing requirements:
+
+- Accepted web source values are exact lowercase `csv`, `sqlite`, and `postgres`.
+- Fields and facets default missing or unrecognized `source` query parameters to the datasource `defaultSource`.
+- Fields and facets reject recognized but unsupported sources with HTTP `400`.
+- Preview requests require a non-empty `source`; missing source is HTTP `400`.
+- Preview rejects unsupported sources with HTTP `400`.
+
+Datasource list endpoint:
+
+- `GET /api/v1/datasources`
+- Response shape:
+  - `items[]` with:
+    - `id`
+    - `label`
+    - `dataSourceName`
+    - `dataSourceUuid`
+    - `supportedSources` (`csv`/`sqlite`/`postgres`)
+    - `defaultSource`
+
+Fields endpoint:
+
+- `GET /api/v1/datasources/{id}/fields?source=...`
+- If `source` is missing, use datasource `defaultSource`
+- Response shape:
+  - `datasourceId`
+  - `source`
+  - `fields[]` with:
+    - `field`
+    - `fieldType`
+    - `nullable`
+    - `supportedOperators`
+    - `widget`
+    - `facetEligible`
+    - `description` (optional)
+
+Field UI mapping:
+
+- `boolean` fields use widget `boolean-toggle`.
+- `number` and `integer` fields use widget `searchable-checkbox-group`.
+- All other current field types also use widget `searchable-checkbox-group`.
+- `facetEligible` is `true` only for `string`, `boolean`, `number`, and `integer`; it is `false` for `date`, `datetime`, and any other type.
+
+Facets endpoint:
+
+- `GET /api/v1/datasources/{id}/facets?source=...&field=...&limit=...&q=...`
+- `field` is required
+- `limit` defaults to `100`
+- Response shape:
+  - `datasourceId`
+  - `source`
+  - `field`
+  - `values[]` with:
+    - `value`
+    - `label`
+    - `count`
+    - `isNull`
+  - `truncated`
+
+Facet behavior:
+
+- Null values are returned as `value: null`, `label: "(blank)"`, `isNull: true`.
+- Distinct values are keyed by runtime type plus value; null uses a dedicated `null` key.
+- The `q` parameter is trimmed and matched as a case-insensitive substring against the display label.
+- Results sort by `count` descending, then `label` ascending.
+- `limit <= 0` means unlimited.
+- `truncated` is `true` only when a positive `limit` removes results.
+- Unknown fields fail with HTTP `400`.
+
+Preview endpoint:
+
+- `POST /api/v1/query/preview`
+- Request shape:
+  - `source`
+  - `maxItems`
+  - `randomSeedGuid` (optional)
+  - `request` (`FilterRequest`)
+- Response shape:
+  - `source`
+  - `compiledWhereSql`
+  - `compiledArgs`
+  - `allowedFields`
+  - `dataSet`
+
+Error envelope:
+
+- Error responses must use:
+  - `error` (short category)
+  - `details` (optional detail string)
+
+HTTP status requirements:
+
+- Unknown datasource id in fields/facets returns `404`.
+- Unsupported source returns `400`.
+- Missing facet `field` returns `400`.
+- Invalid facet `limit` returns `400`.
+- Failed metadata request construction returns `500`.
+- Invalid preview JSON, missing preview source, unknown preview datasource, unsupported preview source, and preview query failures return `400`.

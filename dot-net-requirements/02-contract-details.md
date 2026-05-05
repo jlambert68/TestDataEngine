@@ -5,9 +5,16 @@ Schema authority note:
 - Only root-level files directly under `internal/json` are authoritative.
 - Do not treat `internal/json/old`, `P26_2`, `testdata/pi26_2`, or `dot-net-requirements/json` as contract-defining schema sources.
 
+JSON serialization note:
+
+- Runtime filter models use Pascal-case JSON names defined by the JSON schemas.
+- UI/web API wrapper models use lower camel case JSON names defined by `ui/src/types/api.ts` and `internal/webapi/contracts.go`.
+- Source values must serialize as lowercase strings: `csv`, `sqlite`, and `postgres`.
+- C# records/classes must use explicit `JsonPropertyName`, dedicated serializer options, or custom converters so both contracts can coexist safely in the same process.
+
 ## 2.1 Runtime `filters` Contract
 
-This is the contract used by the CSV and SQLite query engine.
+This is the contract used by the CSV, SQLite, and Postgres query engine.
 
 ### Request model
 
@@ -68,6 +75,24 @@ Important:
 
 - `JsonSchema`, `UpdatedDateTime`, `DataSourceName`, `DataSourceUuid`, and the raw `Data` slice exist in the Go runtime as internal state.
 - Those fields are not part of the emitted JSON contract after `DataSetResponse` is marshaled.
+- The emitted `TestData` property is an object containing `SpecificSourceSchemaVersion` and `TestDataSet`; it is not the raw internal row list.
+
+Canonical field behavior:
+
+- Runtime loading is schema-first and falls back to inference.
+- CSV/SQLite/Postgres rows are normalized to canonical schema field names when aliases or misspellings are close matches.
+- This includes current compatibility for legacy misspellings such as `ClientJuristictionCountryCode` mapping to `ClientJurisdictionCountryCode`.
+
+Schema catalog parsing and canonical matching:
+
+- Read fields from `$defs.TestDataSetItem.properties` in the response schema.
+- Required fields preserve the order from the schema's `required` array.
+- Non-required fields are appended in alphabetical order.
+- `type` accepts one current field type; `oneOf` may combine one current field type with `null`.
+- Canonical lookup first strips all non-ASCII-alphanumeric characters and lowercases the candidate name.
+- A normalized exact match is accepted only when it is unique.
+- If no unique normalized exact match exists, use the unique best Levenshtein match only when distance is `<= 2`.
+- Ambiguous exact or fuzzy matches leave the original field name unchanged.
 
 ## 2.2 Expression Shape Rules
 
@@ -260,6 +285,22 @@ These are required compatibility details for the .NET rewrite.
 - The typed `filtersql` compiler has explicit options for placeholder style and identifier quoting
 - The runtime `filters` compiler always uses `?` placeholders and quoted identifiers
 
+### Difference F: Schema-first datasource modeling
+
+- Runtime CSV/SQLite/Postgres paths first try schema-driven field definitions.
+- If schema-driven loading fails or does not match, runtime falls back to legacy inference.
+- Typed `filtersql` is independent of datasource schema loading and operates on expression validity/compilation.
+
+### Difference G: Runtime and metadata request validation
+
+- Normal runtime query validation requires a non-empty `RequestFilter`.
+- Metadata validation for describe/facet flows does not require `RequestFilter`.
+- The web request factory builds a probe filter anyway:
+  - `RequestUuid`: `11111111-1111-4111-8111-111111111111`
+  - `field`: first schema-catalog field
+  - `op`: `exists`
+  - `value`: `true`
+
 ## 2.6 Database Tables Required by the Runtime
 
 ### SQLite main data table
@@ -326,6 +367,164 @@ Required columns:
 - `JsonSchema`
 - `UpdatedDateTime`
 
+Postgres lookup details:
+
+- Table names are validated with the same safe-table-name rule as SQLite.
+- Qualified table names are quoted by splitting on `.` and quoting each part.
+- Missing metadata table compatibility treats errors containing `does not exist`, `undefined table`, or `relation` as no metadata.
+
+## 2.6A Web API Contract Required for UI Compatibility
+
+The .NET rewrite must include an HTTP layer compatible with the existing UI under `ui/`.
+
+### Required routes
+
+- `GET /api/v1/datasources`
+- `GET /api/v1/datasources/{id}/fields?source=...`
+- `GET /api/v1/datasources/{id}/facets?source=...&field=...&limit=...&q=...`
+- `POST /api/v1/query/preview`
+- `GET /api/v1/healthz`
+
+### Error envelope
+
+- API errors must return:
+  - `error`
+  - `details` (optional)
+
+Status code requirements:
+
+- Unknown datasource id on fields/facets: `404`
+- Unsupported source: `400`
+- Missing facet `field`: `400`
+- Invalid facet `limit`: `400`
+- Failed metadata request factory: `500`
+- Invalid preview body: `400`
+- Missing preview source: `400`
+- Unknown preview datasource: `400`
+- Preview query failure: `400`
+- Missing UI build: `503`
+- Unknown `/api/` route: plain `404`
+
+### Source values
+
+- Accepted serialized values are exactly `csv`, `sqlite`, and `postgres`.
+- Fields/facets default a missing or unrecognized query-string source to `defaultSource`.
+- Preview requires an explicit non-empty source.
+
+### Static catalog
+
+The built-in catalog must contain this datasource:
+
+```json
+{
+  "id": "subcustody",
+  "label": "SubCustody",
+  "dataSourceName": "SubCustody",
+  "dataSourceUuid": "110cc994-a913-4041-96fe-a96d7e0c97e8",
+  "supportedSources": ["csv", "sqlite"],
+  "defaultSource": "sqlite"
+}
+```
+
+Hidden config for the same datasource:
+
+- `CSVPath`: `testdata/pi26_2/FenixRawTestdata_646rows_211220_stripped.csv`
+- `SQLiteDB`: `testdata/SQLiteDB/identifier.sqlite`
+- `SQLiteTable`: `main.data_items`
+- `PostgresTable`: `public.data_items`
+- `PostgresSchema`: `public.testdataset_response_schemas`
+- `PostgresDSN`: empty unless configured externally
+
+### Datasource list response
+
+Each datasource item must include:
+
+- `id`
+- `label`
+- `dataSourceName`
+- `dataSourceUuid`
+- `supportedSources`
+- `defaultSource`
+
+### Fields response
+
+- `datasourceId`
+- `source`
+- `fields[]` entries include:
+  - `field`
+  - `fieldType`
+  - `nullable`
+  - `supportedOperators`
+  - `widget`
+  - `facetEligible`
+  - `description` (optional)
+
+Field mapping:
+
+- `widget` is `boolean-toggle` for `boolean`.
+- `widget` is `searchable-checkbox-group` for `number`, `integer`, and all other current field types.
+- `facetEligible` is `true` only for `string`, `boolean`, `number`, and `integer`.
+
+### Facets response
+
+- `datasourceId`
+- `source`
+- `field`
+- `values[]` entries include:
+  - `value`
+  - `label`
+  - `count`
+  - `isNull`
+- `truncated`
+
+Facet value semantics:
+
+- Null values use label `(blank)`.
+- Search text is matched against the label using case-insensitive substring matching after trimming the query text.
+- Results sort by count descending and then label ascending.
+- `limit <= 0` is unlimited.
+- `truncated` is true only when a positive limit cuts off values.
+
+### Preview request/response
+
+Request:
+
+- `source`
+- `maxItems`
+- `randomSeedGuid` (optional)
+- `request` (`FilterRequest`)
+
+Response:
+
+- `source`
+- `compiledWhereSql`
+- `compiledArgs`
+- `allowedFields`
+- `dataSet`
+
+The nested `request` object retains runtime Pascal-case names while the preview wrapper uses lower camel case.
+
+## 2.6C C# Model Requirements
+
+The C# model layer must separate public wire DTOs from internal runtime state:
+
+- Public web DTOs must serialize exactly like `ui/src/types/api.ts`.
+- Runtime filter DTOs must serialize exactly like the JSON schemas.
+- `DataSetResponse` must keep `JsonSchema`, `UpdatedDateTime`, `DataSourceName`, `DataSourceUuid`, and raw `Data` as internal/non-serialized properties.
+- `DataSetResponse.TestData` on the wire must be a `SpecificDatasourceTestData` object, not a raw row list.
+- `DataSourceListItem` is the public catalog DTO.
+- `DataSourceConfig` or an equivalent internal model is required for hidden CSV/SQLite/Postgres paths and tables.
+- Web query, facet, and request-factory services must accept the internal datasource config, not only the public datasource-list DTO.
+- CLI log envelopes must include `Source`, `InputFilter`, and the response object.
+
+## 2.6B Static UI Hosting Contract
+
+The same .NET process should serve static UI assets compatible with current Go behavior:
+
+- Bind address defaults to `:8080` and can be overridden by `HTTP_ADDR`.
+- Static root is `ui/dist`.
+- Non-API unknown paths return `ui/dist/index.html` to support SPA routing.
+
 ## 2.7 Error Requirements
 
 The .NET rewrite does not need to reproduce Go error text byte-for-byte, but it must preserve failure categories and enough wording for unit tests to assert the same intent.
@@ -347,8 +546,10 @@ Minimum required error categories:
 - invalid operator value type
 - unsafe field name
 - unsafe table name
+- unsafe schema metadata table name
 - missing CSV path
 - missing DB path
+- missing Postgres DSN
 - missing schema file
 - invalid JSON schema metadata
 - invalid JSON payload in SQLite `JsonData`
@@ -356,6 +557,11 @@ Minimum required error categories:
 - invalid random seed GUID
 - CSV empty file or missing header
 - no SQLite rows found for the datasource
+- unsupported source
+- unknown datasource id
+- invalid request body
+- missing facet field parameter
+- invalid facet limit parameter
 
 ## 2.8 Required .NET Architecture
 
@@ -366,9 +572,11 @@ A clean rewrite should have at least these logical components:
 - typed `filtersql` compiler
 - CSV datasource adapter
 - SQLite datasource adapter
+- Postgres datasource adapter
 - JSON schema validator
 - CSV-to-SQLite importer
 - logging wrapper
+- web API server layer
 - executable entry point
 
 Recommended implementation split:
@@ -378,7 +586,9 @@ Recommended implementation split:
 - `Filtering.TypedSql`
 - `DataSources.Csv`
 - `DataSources.Sqlite`
+- `DataSources.Postgres`
 - `SchemaValidation`
 - `Importing`
 - `Logging`
+- `WebApi`
 - `Cli`
