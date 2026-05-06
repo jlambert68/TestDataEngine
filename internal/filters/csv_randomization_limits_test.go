@@ -109,8 +109,8 @@ func TestShuffleRowsWithGUIDDeterministic(t *testing.T) {
 	}
 
 	seedGUID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-	errA := shuffleRowsWithGUID(rowsA, seedGUID)
-	errB := shuffleRowsWithGUID(rowsB, seedGUID)
+	errA := shuffleRowsWithGUID(rowsA, seedGUID, 0)
+	errB := shuffleRowsWithGUID(rowsB, seedGUID, 0)
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "shuffleRowsWithGUID", map[string]any{"seed": seedGUID, "run": "A"}, "nil error", errA)
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "shuffleRowsWithGUID", map[string]any{"seed": seedGUID, "run": "B"}, "nil error", errB)
 	if errA != nil || errB != nil {
@@ -158,8 +158,8 @@ func TestSortRowsCanonicalBeforeSeededSelection(t *testing.T) {
 	}
 	seedGUID := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 
-	_, _, respA, errA := queryDataRows(req, ds, rowsA, "testA", 1, seedGUID, nil)
-	_, _, respB, errB := queryDataRows(req, ds, rowsB, "testB", 1, seedGUID, nil)
+	_, _, respA, errA := queryDataRows(req, ds, rowsA, "testA", 1, seedGUID, 0, nil)
+	_, _, respB, errB := queryDataRows(req, ds, rowsB, "testB", 1, seedGUID, 0, nil)
 	if errA != nil || errB != nil {
 		t.Fatalf("unexpected queryDataRows errors: %v / %v", errA, errB)
 	}
@@ -182,8 +182,8 @@ func TestQueryCSVDataSourceWithSeed(t *testing.T) {
 	csvPath := filepath.Join("..", "..", "P26_2", "FenixRawTestdata_646rows_211220_stripped.csv")
 	seedGUID := "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
-	_, _, first, err1 := QueryCSVDataSourceWithSeed(req, csvPath, 5, seedGUID)
-	_, _, second, err2 := QueryCSVDataSourceWithSeed(req, csvPath, 5, seedGUID)
+	_, _, first, err1 := QueryCSVDataSourceWithSeed(req, csvPath, 5, seedGUID, 0)
+	_, _, second, err2 := QueryCSVDataSourceWithSeed(req, csvPath, 5, seedGUID, 0)
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "QueryCSVDataSourceWithSeed", map[string]any{"seed": seedGUID, "run": "first"}, "nil error + deterministic rows", map[string]any{"err": err1, "rows": first.Data})
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "QueryCSVDataSourceWithSeed", map[string]any{"seed": seedGUID, "run": "second"}, "nil error + deterministic rows", map[string]any{"err": err2, "rows": second.Data})
 	if err1 != nil || err2 != nil {
@@ -207,9 +207,50 @@ func TestQueryCSVDataSourceWithSeedInvalidGUID(t *testing.T) {
 	}
 	csvPath := filepath.Join("..", "..", "P26_2", "FenixRawTestdata_646rows_211220_stripped.csv")
 
-	_, _, _, err := QueryCSVDataSourceWithSeed(req, csvPath, 2, "not-a-guid")
+	_, _, _, err := QueryCSVDataSourceWithSeed(req, csvPath, 2, "not-a-guid", 0)
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "QueryCSVDataSourceWithSeed", map[string]any{"seed": "not-a-guid"}, "invalid seed error", err)
 	if err == nil {
 		t.Fatal("expected invalid random seed guid error")
+	}
+}
+
+func TestSeededRandOffsetBehavior(t *testing.T) {
+	t.Parallel()
+
+	seedGUID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+	rA, err := seededRand(seedGUID, 5)
+	if err != nil {
+		t.Fatalf("seededRand unexpected error: %v", err)
+	}
+	rB, err := seededRand(seedGUID, 5)
+	if err != nil {
+		t.Fatalf("seededRand unexpected error: %v", err)
+	}
+	if gotA, gotB := rA.Int63(), rB.Int63(); gotA != gotB {
+		t.Fatalf("expected same deterministic stream for same guid+offset, got %d vs %d", gotA, gotB)
+	}
+
+	rOffset0, err := seededRand(seedGUID, 0)
+	if err != nil {
+		t.Fatalf("seededRand unexpected error: %v", err)
+	}
+	rOffset1, err := seededRand(seedGUID, 1)
+	if err != nil {
+		t.Fatalf("seededRand unexpected error: %v", err)
+	}
+	if got0, got1 := rOffset0.Int63(), rOffset1.Int63(); got0 == got1 {
+		t.Fatalf("expected different deterministic streams for different offsets, got equal value %d", got0)
+	}
+}
+
+func TestSeededRandOffsetValidation(t *testing.T) {
+	t.Parallel()
+
+	if _, err := seededRand("", 1); err == nil {
+		t.Fatal("expected error when offset is provided without guid")
+	}
+	if _, err := seededRand("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", -1); err == nil {
+		t.Fatal("expected error for negative offset")
 	}
 }

@@ -52,10 +52,11 @@ type GetFacetsResponse struct {
 }
 
 type QueryPreviewRequest struct {
-	Source         SourceType            `json:"source"`
-	MaxItems       int                   `json:"maxItems"`
-	RandomSeedGUID string                `json:"randomSeedGuid,omitempty"`
-	Request        filters.FilterRequest `json:"request"`
+	Source           SourceType            `json:"source"`
+	MaxItems         int                   `json:"maxItems"`
+	RandomSeedGUID   string                `json:"randomSeedGuid,omitempty"`
+	RandomSeedOffset int                   `json:"randomSeedOffset,omitempty"`
+	Request          filters.FilterRequest `json:"request"`
 }
 
 type QueryPreviewResponse struct {

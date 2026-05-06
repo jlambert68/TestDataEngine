@@ -21,17 +21,18 @@ func QuerySQLiteDataSource(
 	tableName string,
 	maxItems int,
 ) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
-	return QuerySQLiteDataSourceWithSeed(req, dbPath, tableName, maxItems, "")
+	return QuerySQLiteDataSourceWithSeed(req, dbPath, tableName, maxItems, "", 0)
 }
 
 // QuerySQLiteDataSourceWithSeed behaves like QuerySQLiteDataSource but allows deterministic
-// shuffling when randomSeedGUID is set.
+// shuffling when randomSeedGUID is set (with optional deterministic offset).
 func QuerySQLiteDataSourceWithSeed(
 	req FilterRequest,
 	dbPath string,
 	tableName string,
 	maxItems int,
 	randomSeedGUID string,
+	randomSeedOffset int,
 ) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
 	if err := validateRequestEnvelope(req); err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
@@ -53,7 +54,7 @@ func QuerySQLiteDataSourceWithSeed(
 	if err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
-	return queryDataRows(req, ds, rows, "sqlite", maxItems, randomSeedGUID, schemaMeta)
+	return queryDataRows(req, ds, rows, "sqlite", maxItems, randomSeedGUID, randomSeedOffset, schemaMeta)
 }
 
 // loadSQLiteDataSource fetches JsonData rows and converts them to typed rows.

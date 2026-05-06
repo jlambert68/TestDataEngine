@@ -54,7 +54,7 @@ type DataSetSchemaMetadata struct {
 
 // QueryCSVDataSource loads rows from a CSV file, applies RequestFilter, and returns matches.
 func QueryCSVDataSource(req FilterRequest, csvPath string, maxItems int) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
-	return QueryCSVDataSourceWithSeed(req, csvPath, maxItems, "")
+	return QueryCSVDataSourceWithSeed(req, csvPath, maxItems, "", 0)
 }
 
 // QueryCSVDataSourceWithSeed behaves like QueryCSVDataSource but allows deterministic shuffling
@@ -64,6 +64,7 @@ func QueryCSVDataSourceWithSeed(
 	csvPath string,
 	maxItems int,
 	randomSeedGUID string,
+	randomSeedOffset int,
 ) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
 	if err := validateRequestEnvelope(req); err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
@@ -80,7 +81,7 @@ func QueryCSVDataSourceWithSeed(
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
 
-	return queryDataRows(req, ds, rows, "csv", maxItems, randomSeedGUID, nil)
+	return queryDataRows(req, ds, rows, "csv", maxItems, randomSeedGUID, randomSeedOffset, nil)
 }
 
 // queryDataRows runs the shared filtering pipeline used by CSV and SQLite sources.
@@ -91,6 +92,7 @@ func queryDataRows(
 	sourceLabel string,
 	maxItems int,
 	randomSeedGUID string,
+	randomSeedOffset int,
 	schemaMeta *DataSetSchemaMetadata,
 ) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
 	compiled, err := compileRequestForDataSource(req, ds)
@@ -119,7 +121,7 @@ func queryDataRows(
 	sortRowsCanonical(filtered)
 
 	// Shuffle before limiting so repeated requests do not always return identical first rows.
-	if err := shuffleRowsWithGUID(filtered, randomSeedGUID); err != nil {
+	if err := shuffleRowsWithGUID(filtered, randomSeedGUID, randomSeedOffset); err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
 	if maxItems > 0 && len(filtered) > maxItems {
@@ -310,15 +312,15 @@ func normalizeSchemaStringValue(v interface{}, nullable bool) interface{} {
 
 // shuffleRows randomizes row order in-place.
 func shuffleRows(rows []map[string]interface{}) {
-	_ = shuffleRowsWithGUID(rows, "")
+	_ = shuffleRowsWithGUID(rows, "", 0)
 }
 
-// shuffleRowsWithGUID randomizes row order in-place and can use a deterministic GUID seed.
-func shuffleRowsWithGUID(rows []map[string]interface{}, randomSeedGUID string) error {
+// shuffleRowsWithGUID randomizes row order in-place and can use a deterministic GUID+offset seed.
+func shuffleRowsWithGUID(rows []map[string]interface{}, randomSeedGUID string, randomSeedOffset int) error {
 	if len(rows) < 2 {
 		return nil
 	}
-	r, err := seededRand(randomSeedGUID)
+	r, err := seededRand(randomSeedGUID, randomSeedOffset)
 	if err != nil {
 		return err
 	}
@@ -329,9 +331,17 @@ func shuffleRowsWithGUID(rows []map[string]interface{}, randomSeedGUID string) e
 }
 
 // seededRand returns deterministic randomness when randomSeedGUID is set.
-func seededRand(randomSeedGUID string) (*rand.Rand, error) {
+// randomSeedOffset must be >= 0. Offset is only valid when GUID is provided.
+func seededRand(randomSeedGUID string, randomSeedOffset int) (*rand.Rand, error) {
+	if randomSeedOffset < 0 {
+		return nil, fmt.Errorf("invalid random seed offset: %d", randomSeedOffset)
+	}
+
 	guid := strings.TrimSpace(randomSeedGUID)
 	if guid == "" {
+		if randomSeedOffset > 0 {
+			return nil, errors.New("random seed offset requires random seed guid")
+		}
 		return rand.New(rand.NewSource(time.Now().UnixNano())), nil
 	}
 	if !isUUID(guid) {
@@ -343,9 +353,9 @@ func seededRand(randomSeedGUID string) (*rand.Rand, error) {
 	if err != nil || len(decoded) < 8 {
 		h := fnv.New64a()
 		_, _ = h.Write([]byte(guid))
-		return rand.New(rand.NewSource(int64(h.Sum64()))), nil
+		return rand.New(rand.NewSource(int64(h.Sum64()) + int64(randomSeedOffset))), nil
 	}
-	seed := int64(binary.BigEndian.Uint64(decoded[:8]))
+	seed := int64(binary.BigEndian.Uint64(decoded[:8])) + int64(randomSeedOffset)
 	return rand.New(rand.NewSource(seed)), nil
 }
 

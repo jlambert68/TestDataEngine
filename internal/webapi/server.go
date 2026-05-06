@@ -142,6 +142,14 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing source", "source is required")
 		return
 	}
+	if req.RandomSeedOffset < 0 {
+		writeError(w, http.StatusBadRequest, "invalid randomSeedOffset", "randomSeedOffset must be >= 0")
+		return
+	}
+	if req.RandomSeedOffset > 0 && strings.TrimSpace(req.RandomSeedGUID) == "" {
+		writeError(w, http.StatusBadRequest, "invalid randomSeedOffset", "randomSeedGuid is required when randomSeedOffset > 0")
+		return
+	}
 
 	cfg, ok := s.findConfigByRequest(req.Request)
 	if !ok {

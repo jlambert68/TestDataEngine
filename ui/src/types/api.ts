@@ -78,6 +78,7 @@ export interface QueryPreviewRequest {
   source: SourceType
   maxItems: number
   randomSeedGuid?: string
+  randomSeedOffset?: number
   request: FilterRequest
 }
 
@@ -153,5 +154,6 @@ export interface BuilderState {
   source: SourceType
   maxItems: number
   randomSeedGuid: string
+  randomSeedOffset: number
   rootGroup: FilterGroupState
 }

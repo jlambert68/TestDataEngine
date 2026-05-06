@@ -69,18 +69,26 @@ func TestQuerySQLiteDataSource(t *testing.T) {
 	}
 
 	seedGUID := "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
-	_, _, seededFirst, err := QuerySQLiteDataSourceWithSeed(req, dbPath, "main.data_items", 2, seedGUID)
+	_, _, seededFirst, err := QuerySQLiteDataSourceWithSeed(req, dbPath, "main.data_items", 2, seedGUID, 0)
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "QuerySQLiteDataSourceWithSeed", map[string]any{"seed": seedGUID, "run": "first"}, "nil error + deterministic rows", map[string]any{"rows": seededFirst.Data, "err": err})
 	if err != nil {
 		t.Fatalf("QuerySQLiteDataSourceWithSeed first call unexpected error: %v", err)
 	}
-	_, _, seededSecond, err := QuerySQLiteDataSourceWithSeed(req, dbPath, "main.data_items", 2, seedGUID)
+	_, _, seededSecond, err := QuerySQLiteDataSourceWithSeed(req, dbPath, "main.data_items", 2, seedGUID, 0)
 	logUnitCall(t, "11111111-1111-4111-8111-111111111111", "QuerySQLiteDataSourceWithSeed", map[string]any{"seed": seedGUID, "run": "second"}, "nil error + deterministic rows", map[string]any{"rows": seededSecond.Data, "err": err})
 	if err != nil {
 		t.Fatalf("QuerySQLiteDataSourceWithSeed second call unexpected error: %v", err)
 	}
 	if !reflect.DeepEqual(seededFirst.Data, seededSecond.Data) {
 		t.Fatal("expected deterministic rows for same sqlite seed guid")
+	}
+
+	_, _, seededOffset, err := QuerySQLiteDataSourceWithSeed(req, dbPath, "main.data_items", 2, seedGUID, 1)
+	if err != nil {
+		t.Fatalf("QuerySQLiteDataSourceWithSeed offset call unexpected error: %v", err)
+	}
+	if len(seededOffset.Data) != 2 {
+		t.Fatalf("expected 2 rows for sqlite offset call, got %d", len(seededOffset.Data))
 	}
 }
 

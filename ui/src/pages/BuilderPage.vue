@@ -24,6 +24,7 @@ const state = reactive<BuilderState>({
   source: 'sqlite',
   maxItems: 25,
   randomSeedGuid: '',
+  randomSeedOffset: 0,
   rootGroup: createGroup('and'),
 })
 
@@ -43,6 +44,7 @@ const activeRequest = computed<QueryPreviewRequest | null>(() => {
     source: state.source,
     maxItems: state.maxItems,
     randomSeedGuid: state.randomSeedGuid || undefined,
+    randomSeedOffset: state.randomSeedOffset > 0 ? state.randomSeedOffset : undefined,
     request: makeFilterRequest(activeDatasource.value, expr),
   }
 })
@@ -95,6 +97,18 @@ function updateMaxItems(value: number) {
   state.maxItems = Math.min(100, Math.max(1, value))
 }
 
+function updateRandomSeedGuid(value: string) {
+  state.randomSeedGuid = value
+}
+
+function updateRandomSeedOffset(value: number) {
+  if (Number.isNaN(value)) {
+    state.randomSeedOffset = 0
+    return
+  }
+  state.randomSeedOffset = Math.max(0, Math.trunc(value))
+}
+
 function storageKey(datasource: string, source: SourceType) {
   return `testdataengine-builder:${datasource}:${source}`
 }
@@ -106,6 +120,7 @@ function persistBuilderState() {
   sessionStorage.setItem(storageKey(state.datasourceId, state.source), JSON.stringify({
     maxItems: state.maxItems,
     randomSeedGuid: state.randomSeedGuid,
+    randomSeedOffset: state.randomSeedOffset,
     rootGroup: state.rootGroup,
   }))
 }
@@ -115,6 +130,7 @@ function restoreBuilderState(datasource: string, source: SourceType) {
   if (!raw) {
     state.maxItems = 25
     state.randomSeedGuid = ''
+    state.randomSeedOffset = 0
     state.rootGroup = createGroup('and')
     return
   }
@@ -123,12 +139,16 @@ function restoreBuilderState(datasource: string, source: SourceType) {
     const parsed = JSON.parse(raw) as Partial<BuilderState>
     state.maxItems = typeof parsed.maxItems === 'number' ? Math.min(100, Math.max(1, parsed.maxItems)) : 25
     state.randomSeedGuid = typeof parsed.randomSeedGuid === 'string' ? parsed.randomSeedGuid : ''
+    state.randomSeedOffset = typeof parsed.randomSeedOffset === 'number'
+      ? Math.max(0, Math.trunc(parsed.randomSeedOffset))
+      : 0
     state.rootGroup = parsed.rootGroup && typeof parsed.rootGroup === 'object'
       ? normalizeGroupState(parsed.rootGroup as FilterGroupState)
       : createGroup('and')
   } catch {
     state.maxItems = 25
     state.randomSeedGuid = ''
+    state.randomSeedOffset = 0
     state.rootGroup = createGroup('and')
   }
 }
@@ -187,7 +207,11 @@ function normalizeGroupState(group: FilterGroupState): FilterGroupState {
       <QueryPreviewPanel
         :request="activeRequest"
         :max-items="state.maxItems"
+        :random-seed-guid="state.randomSeedGuid"
+        :random-seed-offset="state.randomSeedOffset"
         @update:max-items="updateMaxItems"
+        @update:random-seed-guid="updateRandomSeedGuid"
+        @update:random-seed-offset="updateRandomSeedOffset"
       />
     </aside>
   </section>

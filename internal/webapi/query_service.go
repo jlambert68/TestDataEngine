@@ -36,11 +36,11 @@ func (s *queryService) Preview(cfg DataSourceConfig, in QueryPreviewRequest) (Qu
 
 	switch in.Source {
 	case SourceCSV:
-		compiled, allowed, dataSet, err = filters.QueryCSVDataSourceWithSeed(in.Request, cfg.CSVPath, in.MaxItems, in.RandomSeedGUID)
+		compiled, allowed, dataSet, err = filters.QueryCSVDataSourceWithSeed(in.Request, cfg.CSVPath, in.MaxItems, in.RandomSeedGUID, in.RandomSeedOffset)
 	case SourceSQLite:
-		compiled, allowed, dataSet, err = filters.QuerySQLiteDataSourceWithSeed(in.Request, cfg.SQLiteDB, cfg.SQLiteTable, in.MaxItems, in.RandomSeedGUID)
+		compiled, allowed, dataSet, err = filters.QuerySQLiteDataSourceWithSeed(in.Request, cfg.SQLiteDB, cfg.SQLiteTable, in.MaxItems, in.RandomSeedGUID, in.RandomSeedOffset)
 	case SourcePostgres:
-		compiled, allowed, dataSet, err = filters.QueryPostgresDataSourceWithSeed(in.Request, cfg.PostgresDSN, cfg.PostgresTable, cfg.PostgresSchema, in.MaxItems, in.RandomSeedGUID)
+		compiled, allowed, dataSet, err = filters.QueryPostgresDataSourceWithSeed(in.Request, cfg.PostgresDSN, cfg.PostgresTable, cfg.PostgresSchema, in.MaxItems, in.RandomSeedGUID, in.RandomSeedOffset)
 	default:
 		return QueryPreviewResponse{}, errUnsupportedSource(in.Source)
 	}

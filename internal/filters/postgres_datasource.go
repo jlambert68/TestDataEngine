@@ -21,11 +21,11 @@ func QueryPostgresDataSource(
 	schemaTable string,
 	maxItems int,
 ) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
-	return QueryPostgresDataSourceWithSeed(req, dsn, dataTable, schemaTable, maxItems, "")
+	return QueryPostgresDataSourceWithSeed(req, dsn, dataTable, schemaTable, maxItems, "", 0)
 }
 
 // QueryPostgresDataSourceWithSeed behaves like QueryPostgresDataSource but allows deterministic
-// shuffling when randomSeedGUID is set.
+// shuffling when randomSeedGUID is set (with optional deterministic offset).
 func QueryPostgresDataSourceWithSeed(
 	req FilterRequest,
 	dsn string,
@@ -33,6 +33,7 @@ func QueryPostgresDataSourceWithSeed(
 	schemaTable string,
 	maxItems int,
 	randomSeedGUID string,
+	randomSeedOffset int,
 ) (CompiledFilter, AllowedFieldResponse, DataSetResponse, error) {
 	if err := validateRequestEnvelope(req); err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
@@ -60,7 +61,7 @@ func QueryPostgresDataSourceWithSeed(
 	if err != nil {
 		return CompiledFilter{}, AllowedFieldResponse{}, DataSetResponse{}, err
 	}
-	return queryDataRows(req, ds, rows, "postgres", maxItems, randomSeedGUID, schemaMeta)
+	return queryDataRows(req, ds, rows, "postgres", maxItems, randomSeedGUID, randomSeedOffset, schemaMeta)
 }
 
 func loadPostgresDataSource(

@@ -78,6 +78,7 @@ func main() {
 		postgresSchemaTable string
 		maxItems            int
 		randomGUID          string
+		randomSeedOffset    int
 	)
 	flag.StringVar(&sourceType, "source", "csv", "Data source type: csv, sqlite, postgres, or all")
 	flag.StringVar(&csvPath, "csv", "p26_2/FenixRawTestdata_646rows_211220_stripped.csv", "Path to CSV input file")
@@ -88,11 +89,18 @@ func main() {
 	flag.StringVar(&postgresSchemaTable, "postgres-schema-table", "public.testdataset_response_schemas", "Postgres table containing response schema metadata")
 	flag.IntVar(&maxItems, "max-items", 2, "Maximum number of matched rows to return (0=all)")
 	flag.StringVar(&randomGUID, "random-seed-guid", "", "Optional GUID used as deterministic shuffle seed")
+	flag.IntVar(&randomSeedOffset, "random-seed-offset", 0, "Optional deterministic shuffle offset (requires random-seed-guid, must be >= 0)")
 	flag.Parse()
 
 	// Negative values are treated as unbounded to avoid surprising hard failures.
 	if maxItems < 0 {
 		maxItems = 0
+	}
+	if randomSeedOffset < 0 {
+		logging.Fatalf("8d8ec5ce-d6d6-42d5-ac58-31e379174451", "random-seed-offset must be >= 0")
+	}
+	if strings.TrimSpace(randomGUID) == "" && randomSeedOffset > 0 {
+		logging.Fatalf("8ddf5004-a6d4-4075-ad41-2ec690833eaa", "random-seed-offset requires random-seed-guid")
 	}
 
 	if err := validateRequestSchema(filterReqJSON); err != nil {
@@ -105,7 +113,7 @@ func main() {
 	}
 
 	for _, source := range sources {
-		result, err := querySource(req, source, csvPath, sqliteDB, sqliteTable, postgresDSN, postgresTable, postgresSchemaTable, maxItems, randomGUID)
+		result, err := querySource(req, source, csvPath, sqliteDB, sqliteTable, postgresDSN, postgresTable, postgresSchemaTable, maxItems, randomGUID, randomSeedOffset)
 		if err != nil {
 			logging.Fatalf("eb34afc2-53bb-4bcb-bd0d-1a4918453442", "failed to query %s datasource: %v", source, err)
 		}
@@ -136,6 +144,7 @@ func querySource(
 	postgresSchemaTable string,
 	maxItems int,
 	randomGUID string,
+	randomSeedOffset int,
 ) (sourceResult, error) {
 	switch source {
 	case "csv":
@@ -143,7 +152,7 @@ func querySource(
 		if _, statErr := os.Stat(csvPath); statErr != nil && csvPath == "p26_2/FenixRawTestdata_646rows_211220_stripped.csv" {
 			csvPath = "P26_2/FenixRawTestdata_646rows_211220_stripped.csv"
 		}
-		compiled, allowedResp, dataResp, err := filters.QueryCSVDataSourceWithSeed(req, csvPath, maxItems, randomGUID)
+		compiled, allowedResp, dataResp, err := filters.QueryCSVDataSourceWithSeed(req, csvPath, maxItems, randomGUID, randomSeedOffset)
 		if err != nil {
 			return sourceResult{}, err
 		}
@@ -154,7 +163,7 @@ func querySource(
 		if err := validateCSVResponseSchema(dataResp); err != nil {
 			return sourceResult{}, fmt.Errorf("response schema validation failed: %w", err)
 		}
-		logging.Infof("8428b438-123c-40d8-a7ca-ff5b4e87f832", "Source=csv CSV=%s RandomSeedGuid=%s", csvPath, randomGUID)
+		logging.Infof("8428b438-123c-40d8-a7ca-ff5b4e87f832", "Source=csv CSV=%s RandomSeedGuid=%s RandomSeedOffset=%d", csvPath, randomGUID, randomSeedOffset)
 		return sourceResult{
 			Source:      source,
 			Compiled:    compiled,
@@ -163,14 +172,14 @@ func querySource(
 		}, nil
 
 	case "sqlite":
-		compiled, allowedResp, dataResp, err := filters.QuerySQLiteDataSourceWithSeed(req, sqliteDB, sqliteTable, maxItems, randomGUID)
+		compiled, allowedResp, dataResp, err := filters.QuerySQLiteDataSourceWithSeed(req, sqliteDB, sqliteTable, maxItems, randomGUID, randomSeedOffset)
 		if err != nil {
 			return sourceResult{}, err
 		}
 		if err := validateSQLiteResponseSchema(dataResp); err != nil {
 			return sourceResult{}, fmt.Errorf("response schema validation failed: %w", err)
 		}
-		logging.Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "Source=sqlite DB=%s Table=%s RandomSeedGuid=%s", sqliteDB, sqliteTable, randomGUID)
+		logging.Infof("3fd182f4-3d81-4225-b89f-f2dc959fc8ba", "Source=sqlite DB=%s Table=%s RandomSeedGuid=%s RandomSeedOffset=%d", sqliteDB, sqliteTable, randomGUID, randomSeedOffset)
 		return sourceResult{
 			Source:      source,
 			Compiled:    compiled,
@@ -186,6 +195,7 @@ func querySource(
 			postgresSchemaTable,
 			maxItems,
 			randomGUID,
+			randomSeedOffset,
 		)
 		if err != nil {
 			return sourceResult{}, err
@@ -195,10 +205,11 @@ func querySource(
 		}
 		logging.Infof(
 			"5f795883-5799-48d3-ae27-8d491111d9c0",
-			"Source=postgres Table=%s SchemaTable=%s RandomSeedGuid=%s",
+			"Source=postgres Table=%s SchemaTable=%s RandomSeedGuid=%s RandomSeedOffset=%d",
 			postgresTable,
 			postgresSchemaTable,
 			randomGUID,
+			randomSeedOffset,
 		)
 		return sourceResult{
 			Source:      source,
