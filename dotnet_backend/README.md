@@ -14,7 +14,7 @@ Non-API routes serve static files from `ui/dist` with SPA fallback to `index.htm
 
 ## Run
 
-Requires `.NET 8 SDK`.
+Requires `.NET 10 SDK`.
 
 ```bash
 cd dotnet_backend
@@ -35,3 +35,6 @@ HTTP_ADDR=:8081 dotnet run
 - The API contract matches `ui/src/types/api.ts`, so the UI can switch from Go backend to this backend without UI code changes.
 - Runtime filter request fields keep Pascal-case JSON (`SchemaVersion`, `RequestUuid`, etc.).
 - Web wrapper fields use lower camel case (`source`, `compiledWhereSql`, `dataSet`, etc.).
+- Preview deterministic randomization supports:
+  - `randomSeedGuid` (UUID)
+  - `randomSeedOffset` (integer `>= 0`, requires `randomSeedGuid` when greater than `0`)

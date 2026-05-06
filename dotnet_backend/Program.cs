@@ -136,6 +136,14 @@ app.MapPost("/api/v1/query/preview", async Task<IResult> (HttpRequest http, Data
     {
         return JsonError.BadRequest("missing source", "source is required");
     }
+    if (request.RandomSeedOffset < 0)
+    {
+        return JsonError.BadRequest("invalid randomSeedOffset", "randomSeedOffset must be >= 0");
+    }
+    if (request.RandomSeedOffset > 0 && string.IsNullOrWhiteSpace(request.RandomSeedGuid))
+    {
+        return JsonError.BadRequest("invalid randomSeedOffset", "randomSeedGuid is required when randomSeedOffset > 0");
+    }
     if (!catalog.TryFindByRequest(request.Request, out var cfg))
     {
         return JsonError.BadRequest("unknown datasource", "request datasource does not match the server catalog");
@@ -299,6 +307,7 @@ sealed record QueryPreviewRequest(
     [property: JsonPropertyName("source")] string Source,
     [property: JsonPropertyName("maxItems")] int MaxItems,
     [property: JsonPropertyName("randomSeedGuid")] string? RandomSeedGuid,
+    [property: JsonPropertyName("randomSeedOffset")] int RandomSeedOffset,
     [property: JsonPropertyName("request")] FilterRequest Request
 );
 
@@ -684,11 +693,11 @@ sealed class QueryEngine(SchemaCatalog schema)
 
     public QueryPreviewResponse Preview(DataSourceConfig cfg, QueryPreviewRequest request)
     {
-        var result = Query(request.Source, cfg, request.Request, request.MaxItems, request.RandomSeedGuid ?? "");
+        var result = Query(request.Source, cfg, request.Request, request.MaxItems, request.RandomSeedGuid ?? "", request.RandomSeedOffset);
         return new QueryPreviewResponse(request.Source, result.Compiled.WhereSql, result.Compiled.Args, result.Allowed, result.DataSet);
     }
 
-    public QueryResult Query(string source, DataSourceConfig cfg, FilterRequest request, int maxItems, string randomSeedGuid)
+    public QueryResult Query(string source, DataSourceConfig cfg, FilterRequest request, int maxItems, string randomSeedGuid, int randomSeedOffset)
     {
         ValidateRuntimeRequest(request);
         if (maxItems < 0)
@@ -702,7 +711,7 @@ sealed class QueryEngine(SchemaCatalog schema)
 
         var filtered = loaded.Rows.Where(row => EvaluateExpression(request.RequestFilter, row, loaded.Definition.Fields)).Select(CloneRow).ToList();
         filtered.Sort((a, b) => string.CompareOrdinal(CanonicalRowKey(a), CanonicalRowKey(b)));
-        Shuffle(filtered, randomSeedGuid);
+        Shuffle(filtered, randomSeedGuid, randomSeedOffset);
         if (maxItems > 0 && filtered.Count > maxItems)
         {
             filtered = filtered.Take(maxItems).ToList();
@@ -1347,35 +1356,49 @@ sealed class QueryEngine(SchemaCatalog schema)
         return s;
     }
 
-    private static void Shuffle(List<Dictionary<string, object?>> rows, string randomSeedGuid)
+    private static void Shuffle(List<Dictionary<string, object?>> rows, string randomSeedGuid, int randomSeedOffset)
     {
         if (rows.Count < 2)
         {
             return;
         }
 
-        Random rng;
-        if (string.IsNullOrWhiteSpace(randomSeedGuid))
-        {
-            rng = Random.Shared;
-        }
-        else
-        {
-            if (!UuidRegex.IsMatch(randomSeedGuid.Trim()))
-            {
-                throw new InvalidOperationException($"invalid random seed guid: {randomSeedGuid}");
-            }
-            var normalized = randomSeedGuid.Trim().Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
-            var bytes = Convert.FromHexString(normalized);
-            var seed64 = BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(0, 8));
-            rng = new Random(unchecked((int)(seed64 ^ (seed64 >> 32))));
-        }
+        var rng = SeededRandom(randomSeedGuid, randomSeedOffset);
 
         for (var i = rows.Count - 1; i > 0; i--)
         {
             var j = rng.Next(i + 1);
             (rows[i], rows[j]) = (rows[j], rows[i]);
         }
+    }
+
+    private static Random SeededRandom(string randomSeedGuid, int randomSeedOffset)
+    {
+        if (randomSeedOffset < 0)
+        {
+            throw new InvalidOperationException($"invalid random seed offset: {randomSeedOffset}");
+        }
+
+        var guid = (randomSeedGuid ?? "").Trim();
+        if (guid.Length == 0)
+        {
+            if (randomSeedOffset > 0)
+            {
+                throw new InvalidOperationException("random seed offset requires random seed guid");
+            }
+            return Random.Shared;
+        }
+        if (!UuidRegex.IsMatch(guid))
+        {
+            throw new InvalidOperationException($"invalid random seed guid: {randomSeedGuid}");
+        }
+
+        var normalized = guid.Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
+        var bytes = Convert.FromHexString(normalized);
+        var seed64 = BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(0, 8));
+        seed64 = unchecked(seed64 + (long)randomSeedOffset);
+        var seed32 = unchecked((int)(seed64 ^ (seed64 >> 32)));
+        return new Random(seed32);
     }
 
     private static string CanonicalResponseSchemaName(string name)
