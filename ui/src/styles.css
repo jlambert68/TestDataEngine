@@ -191,6 +191,24 @@ textarea {
   padding: 4px 10px;
 }
 
+.payload-status-same {
+  background: #e9f6ea;
+  border-color: #9fcca6;
+  color: #204f27;
+}
+
+.payload-status-different {
+  background: #fff2dc;
+  border-color: #e7c18c;
+  color: #714519;
+}
+
+.payload-status-error {
+  background: #fdeced;
+  border-color: #e5a7ad;
+  color: #7b1e27;
+}
+
 .facet-list {
   border: 1px solid var(--border);
   border-radius: 16px;

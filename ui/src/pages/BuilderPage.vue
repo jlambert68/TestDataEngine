@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import FilterGroupEditor from '../components/filter/FilterGroupEditor.vue'
 import JsonRequestPreview from '../components/query/JsonRequestPreview.vue'
@@ -8,16 +8,21 @@ import QueryPreviewPanel from '../components/query/QueryPreviewPanel.vue'
 import { useDatasources } from '../composables/useDatasources'
 import { useFields } from '../composables/useFields'
 import { buildRequestFilter } from '../utils/buildRequestFilter'
+import { compareOutgoingPayloads, parseFilterGroupFromPayloadExpression, parseOutgoingPayloadInput } from '../utils/payloadRoundtrip'
 import { makeFilterRequest } from '../utils/requestEnvelope'
 import type { BuilderState, DataSourceListItem, FilterGroupState, FilterRuleState, QueryPreviewRequest, SourceType } from '../types/api'
 
 const route = useRoute()
+const router = useRouter()
 
 const datasourceId = computed(() => String(route.params.datasourceId ?? ''))
 const requestedSource = computed(() => String(route.query.source ?? ''))
 
 const { items, load: loadDatasources } = useDatasources()
 const { fields, loading, error, load: loadFields } = useFields()
+const requestUuidOverride = ref('')
+const payloadCompareStatus = ref<'idle' | 'same' | 'different' | 'error'>('idle')
+const payloadCompareMessage = ref('')
 
 const state = reactive<BuilderState>({
   datasourceId: '',
@@ -45,7 +50,7 @@ const activeRequest = computed<QueryPreviewRequest | null>(() => {
     maxItems: state.maxItems,
     randomSeedGuid: state.randomSeedGuid || undefined,
     randomSeedOffset: state.randomSeedOffset > 0 ? state.randomSeedOffset : undefined,
-    request: makeFilterRequest(activeDatasource.value, expr),
+    request: makeFilterRequest(activeDatasource.value, expr, requestUuidOverride.value || undefined),
   }
 })
 
@@ -53,6 +58,8 @@ watch([activeDatasource, requestedSource], ([datasource, source]) => {
   if (!datasource) {
     return
   }
+  requestUuidOverride.value = ''
+  resetPayloadCompare()
   state.datasourceId = datasource.id
   state.source = datasource.supportedSources.includes(source as SourceType)
     ? (source as SourceType)
@@ -91,6 +98,8 @@ function createGroup(combinator: 'and' | 'or'): FilterGroupState {
 
 function resetBuilder() {
   state.rootGroup = createGroup('and')
+  requestUuidOverride.value = ''
+  resetPayloadCompare()
 }
 
 function updateMaxItems(value: number) {
@@ -107,6 +116,66 @@ function updateRandomSeedOffset(value: number) {
     return
   }
   state.randomSeedOffset = Math.max(0, Math.trunc(value))
+}
+
+function resetPayloadCompare() {
+  payloadCompareStatus.value = 'idle'
+  payloadCompareMessage.value = ''
+}
+
+async function applyOutgoingPayload(payload: string) {
+  resetPayloadCompare()
+  const datasource = activeDatasource.value
+  if (!datasource) {
+    payloadCompareStatus.value = 'error'
+    payloadCompareMessage.value = 'Select a datasource before importing payload.'
+    return
+  }
+
+  try {
+    const parsed = parseOutgoingPayloadInput(payload)
+    const targetDatasource = items.value.find(item =>
+      item.dataSourceUuid === parsed.request.DataSourceUuid &&
+      item.dataSourceName === parsed.request.DataSourceName,
+    )
+    if (!targetDatasource) {
+      throw new Error('Payload datasource does not exist in the datasource catalog.')
+    }
+    if (!targetDatasource.supportedSources.includes(parsed.source)) {
+      throw new Error(`Payload source "${parsed.source}" is not supported for this datasource.`)
+    }
+
+    if (targetDatasource.id !== datasource.id || parsed.source !== requestedSource.value) {
+      await router.push({ path: `/builder/${targetDatasource.id}`, query: { source: parsed.source } })
+    }
+
+    state.datasourceId = targetDatasource.id
+    state.source = parsed.source
+    await loadFields(targetDatasource.id, parsed.source)
+    if (error.value) {
+      throw new Error(error.value)
+    }
+
+    state.maxItems = Math.min(100, Math.max(1, parsed.maxItems))
+    state.randomSeedGuid = parsed.randomSeedGuid ?? ''
+    state.randomSeedOffset = parsed.randomSeedOffset ?? 0
+    state.rootGroup = parseFilterGroupFromPayloadExpression(parsed.request.RequestFilter, fields.value)
+    requestUuidOverride.value = parsed.request.RequestUuid
+
+    const rebuilt = activeRequest.value
+    if (!rebuilt) {
+      throw new Error('Could not rebuild outgoing payload from imported filter.')
+    }
+
+    const compare = compareOutgoingPayloads(parsed, rebuilt)
+    payloadCompareStatus.value = compare.same ? 'same' : 'different'
+    payloadCompareMessage.value = compare.same
+      ? 'Imported payload matches the rebuilt payload.'
+      : 'Imported payload does not match the rebuilt payload.'
+  } catch (err) {
+    payloadCompareStatus.value = 'error'
+    payloadCompareMessage.value = err instanceof Error ? err.message : 'Failed to import payload.'
+  }
 }
 
 function storageKey(datasource: string, source: SourceType) {
@@ -203,7 +272,12 @@ function normalizeGroupState(group: FilterGroupState): FilterGroupState {
     </article>
 
     <aside class="side-panel stack">
-      <JsonRequestPreview :request="activeRequest" />
+      <JsonRequestPreview
+        :request="activeRequest"
+        :compare-status="payloadCompareStatus"
+        :compare-message="payloadCompareMessage"
+        @apply-payload="applyOutgoingPayload"
+      />
       <QueryPreviewPanel
         :request="activeRequest"
         :max-items="state.maxItems"
